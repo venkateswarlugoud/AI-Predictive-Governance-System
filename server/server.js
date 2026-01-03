@@ -1,34 +1,30 @@
-import express from "express"; 
-import dotenv, { config } from "dotenv";
+import dotenv from "dotenv";
+dotenv.config(); // MUST be first
+
+import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import {connectDB} from "./config/db.js";
+import { connectDB } from "./config/db.js";
 import userRouter from "./routes/userRoutes.js";
 import complaintRouter from "./routes/complaintRoutes.js";
 
-
-dotenv.config(); 
-
 const app = express();
-const PORT = process.env.PORT || 4000; 
+const PORT = process.env.PORT || 4000;
 
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({ credentials: true }));
-
 
 app.get("/", (req, res) => {
   res.send("Server is running!");
 });
 
 app.use("/api/auth", userRouter);
-app.use("/api/complaint", complaintRouter)
+app.use("/api/complaint", complaintRouter);
 
-
-
-await connectDB();
-app.listen(PORT, () => {
-  console.log(`server is running on PORT: ${PORT}`);
+// ⛔ DO NOT use top-level await
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server is running on PORT: ${PORT}`);
+  });
 });
-
-// website is in construction

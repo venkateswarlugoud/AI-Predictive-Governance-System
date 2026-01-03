@@ -1,83 +1,77 @@
-import {generateToken} from "../config/utils.js";
-import cloudinary from "../config/cloudinary.js";
 import User from "../models/User.js";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
+// Generate JWT
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: "7d",
+  });
+};
 
+// REGISTER USER
+export const registerUser = async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
 
-// Signup a new user
-export const signup = async (req, res)=>{
-    const { fullName, email, password, address } = req.body;
-
-    try {
-        if (!fullName || !email || !password || !address){
-            return res.json({success: false, message: "Missing Details" })
-        }
-        const user = await User.findOne({email});
-
-        if(user){
-            return res.json({success: false, message: "Account already exists" })
-        }
-
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        const newUser = await User.create({
-            fullName, email, password: hashedPassword, address
-        });
-
-        const token = generateToken(newUser._id)
-
-        res.json({success: true, userData: newUser, token, message: "Account created successfully"})
-    } catch (error) {
-        console.log(error.message);
-        res.json({success: false, message: error.message})
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "All fields are required" });
     }
-}
 
-// Controller to login a user
-export const login = async (req, res) =>{
-    try {
-        const { email, password } = req.body;
-        const userData = await User.findOne({email})
-
-        const isPasswordCorrect = await bcrypt.compare(password, userData.password);
-
-        if (!isPasswordCorrect){
-            return res.json({ success: false, message: "Invalid credentials" });
-        }
-
-        const token = generateToken(userData._id)
-
-        res.json({success: true, userData, token, message: "Login successful"})
-    } catch (error) {
-        console.log(error.message);
-        res.json({success: false, message: error.message})
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({ message: "User already exists" });
     }
-}
-// Controller to check if user is authenticated
-export const checkAuth = (req, res)=>{
-    res.json({success: true, user: req.user});
-}
 
-// Controller to update user profile details
-export const updateProfile = async (req, res)=>{
-    try {
-        const { profilePic, address, fullName } = req.body;
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role,
+    });
 
-        const userId = req.user._id;
-        let updatedUser;
+    res.status(201).json({
+      message: "User registered successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
-        if(!profilePic){
-            updatedUser = await User.findByIdAndUpdate(userId, {address, fullName}, {new: true});
-        } else{
-            const upload = await cloudinary.uploader.upload(profilePic);
+// LOGIN USER
+export const loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
-            updatedUser = await User.findByIdAndUpdate(userId, {profilePic: upload.secure_url, address, fullName}, {new: true});
-        }
-        res.json({success: true, user: updatedUser})
-    } catch (error) {
-        console.log(error.message);
-        res.json({success: false, message: error.message})
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: "Invalid credentials" });
     }
-}
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    const token = generateToken(user._id);
+
+    res.json({
+      message: "Login successful",
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
