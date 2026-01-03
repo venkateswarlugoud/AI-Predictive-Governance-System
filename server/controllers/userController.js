@@ -75,3 +75,16 @@ export const loginUser = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+// CHECK AUTH (Protected)
+export const checkAuth = (req, res) => {
+  res.status(200).json({
+    success: true,
+    user: {
+      id: req.user._id,
+      name: req.user.name,
+      email: req.user.email,
+      role: req.user.role,
+    },
+  });
+};
+

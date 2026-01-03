@@ -1,90 +1,110 @@
-import Complaint from '../models/Complaint.js';
-import cloudinary from '../config/cloudinary.js';
+import Complaint from "../models/Complaint.js";
+import cloudinary from "../config/cloudinary.js";
 
+// CREATE COMPLAINT (Citizen)
 export const createComplaint = async (req, res) => {
   try {
-    const { city, state, address, image } = req.body;
+    const { title, description, category, location } = req.body;
 
-    // Validate required fields
-    if (!city || !state || !address) {
-      return res.status(400).json({ message: 'City, state, and address are required.' });
+    if (!title || !description || !category || !location) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required"
+      });
     }
 
-    let imageUrl;
-    if (image) {
-      try {
-        const uploadResponse = await cloudinary.uploader.upload(image);
-        imageUrl = uploadResponse.secure_url;
-      } catch (err) {
-        return res.status(500).json({ message: 'Image upload to Cloudinary failed.', error: err.message });
-      }
-    }
-
-    const newComplaint = await Complaint.create({
-      user: req.user._id,
-      city,
-      state,
-      address,
-      imageUrl
+    const complaint = await Complaint.create({
+      title,
+      description,
+      category,
+      location,
+      userId: req.user.id
     });
 
     res.status(201).json({
-      message: 'Complaint submitted successfully.',
-      complaint: newComplaint
+      success: true,
+      message: "Complaint created successfully",
+      complaint
     });
 
   } catch (error) {
-    console.error('Error while creating complaint:', error);
-    res.status(500).json({ message: 'Server error while submitting complaint.' });
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
-
+// GET ALL COMPLAINTS (Admin)
 export const getAllComplaints = async (req, res) => {
   try {
-    const complaints = await Complaint.find().populate('user', 'email');
-    res.status(200).json(complaints);
+    const complaints = await Complaint.find()
+      .populate("user", "name email");
+
+    res.status(200).json({
+      success: true,
+      complaints,
+    });
   } catch (error) {
-    console.error('Error fetching complaints:', error);
-    res.status(500).json({ message: 'Failed to fetch complaints.' });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
+// GET MY COMPLAINTS (Citizen)
 export const getMyComplaints = async (req, res) => {
   try {
     const complaints = await Complaint.find({ user: req.user._id });
-    res.status(200).json(complaints);
+
+    res.status(200).json({
+      success: true,
+      complaints,
+    });
   } catch (error) {
-    console.error('Error fetching user complaints:', error);
-    res.status(500).json({ message: 'Failed to fetch your complaints.' });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
+// UPDATE COMPLAINT STATUS (Admin)
 export const updateComplaintStatus = async (req, res) => {
   try {
-    const complaintId = req.params.id;
     const { status } = req.body;
 
-    if (!['New', 'In Progress', 'Resolved'].includes(status)) {
-      return res.status(400).json({ message: 'Invalid status value.' });
+    if (!["Pending", "In Progress", "Resolved"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status value",
+      });
     }
 
     const updatedComplaint = await Complaint.findByIdAndUpdate(
-      complaintId,
+      req.params.id,
       { status },
       { new: true }
     );
 
     if (!updatedComplaint) {
-      return res.status(404).json({ message: 'Complaint not found.' });
+      return res.status(404).json({
+        success: false,
+        message: "Complaint not found",
+      });
     }
 
     res.status(200).json({
-      message: 'Complaint status updated.',
-      complaint: updatedComplaint
+      success: true,
+      message: "Complaint status updated",
+      complaint: updatedComplaint,
     });
   } catch (error) {
-    console.error('Error updating complaint status:', error);
-    res.status(500).json({ message: 'Failed to update status.' });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
