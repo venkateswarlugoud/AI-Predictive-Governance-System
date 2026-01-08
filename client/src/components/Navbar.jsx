@@ -1,69 +1,56 @@
-import React, { useState } from 'react';
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import "./Navbar.css";
 
 const Navbar = () => {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
 
   return (
-    <div className="text-black w-full">
-      {/* Top Offer Banner */}
-      <div className="text-center font-semibold text-base md:text-lg py-2 bg-gradient-to-r from-sky-300 via-blue-400 to-indigo-500">
-        <p>
-          Exclusive Price Drop! Hurry, <span className="underline underline-offset-2">Offer Ends Soon!</span>
-        </p>
+    <nav className="navbar">
+      <div className="navbar-container">
+        <Link to="/" className="navbar-logo">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <rect width="32" height="32" rx="6" fill="var(--primary-color)"/>
+            <path d="M16 8L20 14H12L16 8Z" fill="white"/>
+            <path d="M10 18L16 24L22 18H10Z" fill="white"/>
+          </svg>
+          <span>Municipal Grievance</span>
+        </Link>
+
+        <div className="navbar-menu">
+          {user ? (
+            <>
+              {user.role === "admin" ? (
+                <Link to="/admin" className="navbar-link">Municipal Dashboard</Link>
+              ) : (
+                <>
+                  <Link to="/dashboard" className="navbar-link">Dashboard</Link>
+                  <Link to="/complaint/create" className="navbar-link">Create Complaint</Link>
+                  <Link to="/dashboard" className="navbar-link">My Complaints</Link>
+                </>
+              )}
+              <div className="navbar-user">
+                <span className="navbar-user-name">{user.name}</span>
+                <button onClick={handleLogout} className="btn btn-secondary btn-sm">
+                  Logout
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="navbar-link">Login</Link>
+              <Link to="/register" className="btn btn-primary btn-sm">Register</Link>
+            </>
+          )}
+        </div>
       </div>
-
-      {/* Main Navbar */}
-      <nav className="relative h-[70px] flex items-center justify-between px-6 md:px-16 lg:px-24 xl:px-32 py-4 bg-transparent text-white transition-all shadow-none">
-        {/* Logo */}
-        <a href="/">
-          <svg width="157" height="40" viewBox="0 0 157 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M47.904 28.28..." fill="#fff" />
-            <path d="m8.75 11.3..." stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </a>
-
-        {/* Desktop Nav */}
-        <ul className="hidden md:flex items-center text-lg font-medium space-x-14 md:pl-28">
-          <li><a href="#" className="hover:underline">Home</a></li>
-          <li><a href="#" className="hover:underline">Services</a></li>
-          <li><a href="#" className="hover:underline">Portfolio</a></li>
-          <li><a href="#" className="hover:underline">Pricing</a></li>
-        </ul>
-
-        {/* Desktop Button */}
-        <button className="hidden md:inline border border-white text-white hover:bg-white hover:text-black ml-24 px-12 py-3 text-lg rounded-full active:scale-95 transition-all">
-          Get started
-        </button>
-
-        {/* Mobile Menu Toggle */}
-        <button
-          aria-label="menu-btn"
-          type="button"
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="menu-btn inline-block md:hidden active:scale-90 transition"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30" fill="white">
-            <path d="M3 7a1 1 0 1 0 0 2h24a1 1 0 1 0 0-2zm0 7a1 1 0 1 0 0 2h24a1 1 0 1 0 0-2zm0 7a1 1 0 1 0 0 2h24a1 1 0 1 0 0-2z" />
-          </svg>
-        </button>
-
-        {/* Mobile Menu */}
-        {menuOpen && (
-          <div className="absolute top-[70px] left-0 w-full bg-black bg-opacity-90 shadow-sm p-6 md:hidden">
-            <ul className="flex flex-col space-y-5 text-lg font-medium">
-              <li><a href="#" className="text-white">Home</a></li>
-              <li><a href="#" className="text-white">Services</a></li>
-              <li><a href="#" className="text-white">Portfolio</a></li>
-              <li><a href="#" className="text-white">Pricing</a></li>
-            </ul>
-
-            <button type="button" className="border border-white text-white mt-6 text-lg font-medium hover:bg-white hover:text-black active:scale-95 transition-all w-44 h-12 rounded-full">
-              Get started
-            </button>
-          </div>
-        )}
-      </nav>
-    </div>
+    </nav>
   );
 };
 

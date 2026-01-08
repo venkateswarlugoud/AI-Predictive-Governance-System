@@ -3,18 +3,26 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import "./AuthPages.css";
 
-const LoginPage = () => {
+const RegisterPage = () => {
   const [formData, setFormData] = useState({
+    name: "",
     email: "",
     password: "",
+    confirmPassword: "",
+    role: "citizen",
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const [success, setSuccess] = useState(false);
+  const { register } = useAuth();
   const navigate = useNavigate();
 
   const validate = () => {
     const newErrors = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = "Name is required";
+    }
 
     if (!formData.email.trim()) {
       newErrors.email = "Email is required";
@@ -24,6 +32,12 @@ const LoginPage = () => {
 
     if (!formData.password) {
       newErrors.password = "Password is required";
+    } else if (formData.password.length < 6) {
+      newErrors.password = "Password must be at least 6 characters";
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match";
     }
 
     setErrors(newErrors);
@@ -33,6 +47,7 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrors({});
+    setSuccess(false);
 
     if (!validate()) {
       return;
@@ -40,16 +55,19 @@ const LoginPage = () => {
 
     setLoading(true);
     try {
-      await login(formData.email, formData.password);
-      const user = JSON.parse(localStorage.getItem("user"));
-      if (user?.role === "admin") {
-        navigate("/admin");
-      } else {
-        navigate("/dashboard");
-      }
+      await register({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+      });
+      setSuccess(true);
+      setTimeout(() => {
+        navigate("/login");
+      }, 2000);
     } catch (error) {
       setErrors({
-        submit: error.response?.data?.message || "Invalid email or password",
+        submit: error.response?.data?.message || "Registration failed. Please try again.",
       });
     } finally {
       setLoading(false);
@@ -69,9 +87,15 @@ const LoginPage = () => {
       <div className="auth-container">
         <div className="auth-card">
           <div className="auth-header">
-            <h1>Welcome Back</h1>
-            <p>Sign in to your account to continue</p>
+            <h1>Create Account</h1>
+            <p>Join the Municipal Grievance Management System</p>
           </div>
+
+          {success && (
+            <div className="success-message">
+              ✓ Registration successful! Redirecting to login...
+            </div>
+          )}
 
           {errors.submit && (
             <div className="error-message" style={{ marginBottom: "24px" }}>
@@ -80,6 +104,22 @@ const LoginPage = () => {
           )}
 
           <form onSubmit={handleSubmit} className="auth-form">
+            <div className="form-group">
+              <label className="form-label" htmlFor="name">
+                Full Name
+              </label>
+              <input
+                type="text"
+                id="name"
+                name="name"
+                className="form-input"
+                placeholder="Enter your full name"
+                value={formData.name}
+                onChange={handleChange}
+              />
+              {errors.name && <div className="error-message">{errors.name}</div>}
+            </div>
+
             <div className="form-group">
               <label className="form-label" htmlFor="email">
                 Email Address
@@ -105,11 +145,45 @@ const LoginPage = () => {
                 id="password"
                 name="password"
                 className="form-input"
-                placeholder="Enter your password"
+                placeholder="Create a password"
                 value={formData.password}
                 onChange={handleChange}
               />
               {errors.password && <div className="error-message">{errors.password}</div>}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="confirmPassword">
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                id="confirmPassword"
+                name="confirmPassword"
+                className="form-input"
+                placeholder="Confirm your password"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+              />
+              {errors.confirmPassword && (
+                <div className="error-message">{errors.confirmPassword}</div>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="role">
+                Account Type
+              </label>
+              <select
+                id="role"
+                name="role"
+                className="form-select"
+                value={formData.role}
+                onChange={handleChange}
+              >
+                <option value="citizen">Citizen</option>
+                <option value="admin">Municipal Officer</option>
+              </select>
             </div>
 
             <button
@@ -118,13 +192,13 @@ const LoginPage = () => {
               style={{ width: "100%", marginTop: "8px" }}
               disabled={loading}
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? "Creating Account..." : "Create Account"}
             </button>
           </form>
 
           <div className="auth-footer">
             <p>
-              Don't have an account? <Link to="/register">Create one</Link>
+              Already have an account? <Link to="/login">Sign in</Link>
             </p>
           </div>
         </div>
@@ -133,4 +207,4 @@ const LoginPage = () => {
   );
 };
 
-export default LoginPage;
+export default RegisterPage;
