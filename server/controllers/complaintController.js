@@ -1,77 +1,97 @@
 import Complaint from "../models/Complaint.js";
-import cloudinary from "../config/cloudinary.js";
+import { predictComplaint } from "../services/aiService.js";
 
-// CREATE COMPLAINT (Citizen)
+// ===============================
+// CREATE COMPLAINT (Citizen) – AI ENABLED
+// ===============================
 export const createComplaint = async (req, res) => {
   try {
-    console.log("=== CREATE COMPLAINT CALLED ===");
-    console.log("req.user:", req.user);
-    console.log("req.user type:", typeof req.user);
-    
-    const { title, description, category, location } = req.body;
-    console.log("Request body:", { title, description, category, location });
+    const { title, description, location } = req.body;
 
-    if (!title || !description || !category || !location) {
+    if (!title || !description || !location) {
       return res.status(400).json({
         success: false,
-        message: "All fields are required"
+        message: "Title, description and location are required",
       });
     }
 
-    // Check if user is authenticated
-    if (!req.user) {
-      console.error("❌ req.user is missing - authentication failed");
+    if (!req.user || !req.user._id) {
       return res.status(401).json({
         success: false,
-        message: "User not authenticated"
+        message: "User not authenticated",
       });
     }
 
-    // Try both _id and id in case of different formats
-    const userId = req.user._id || req.user.id;
-    
-    if (!userId) {
-      console.error("❌ User ID not found. req.user:", JSON.stringify(req.user, null, 2));
-      return res.status(401).json({
-        success: false,
-        message: "User ID not found"
-      });
-    }
+    // 🔥 Call AI service
+    const aiResult = await predictComplaint(description);
 
-    console.log("✅ User authenticated. User ID:", userId);
-    console.log("User ID type:", typeof userId);
-
-    const complaintData = {
+    const complaint = await Complaint.create({
       title,
       description,
-      category,
       location,
-      user: userId
-    };
-
-    console.log("📝 Complaint data before create:", JSON.stringify(complaintData, null, 2));
-
-    const complaint = await Complaint.create(complaintData);
+      category: aiResult.category,
+      priority: aiResult.priority,
+      user: req.user._id,
+    });
 
     res.status(201).json({
       success: true,
-      message: "Complaint created successfully",
-      complaint
+      message: "Complaint submitted with AI prediction",
+      complaint,
     });
-
   } catch (error) {
-    console.error("Error creating complaint:", error);
+    console.error("Create complaint error:", error.message);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: "Failed to create complaint",
     });
   }
 };
 
-// GET ALL COMPLAINTS (Admin)
+// ===============================
+// GET ALL COMPLAINTS (Admin) – AI PRIORITY SORTED
+// ===============================
 export const getAllComplaints = async (req, res) => {
   try {
-    const complaints = await Complaint.find()
+    const complaints = await Complaint.aggregate([
+      {
+        $addFields: {
+          priorityOrder: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$priority", "High"] }, then: 1 },
+                { case: { $eq: ["$priority", "Medium"] }, then: 2 },
+                { case: { $eq: ["$priority", "Low"] }, then: 3 },
+              ],
+              default: 4,
+            },
+          },
+        },
+      },
+      { $sort: { priorityOrder: 1, createdAt: -1 } },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      complaints,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// ===============================
+// GET COMPLAINTS BY CATEGORY (Admin)
+// ===============================
+export const getComplaintsByCategory = async (req, res) => {
+  try {
+    const { category } = req.params;
+
+    const complaints = await Complaint.find({ category })
+      .sort({ createdAt: -1 })
       .populate("user", "name email");
 
     res.status(200).json({
@@ -86,7 +106,9 @@ export const getAllComplaints = async (req, res) => {
   }
 };
 
+// ===============================
 // GET MY COMPLAINTS (Citizen)
+// ===============================
 export const getMyComplaints = async (req, res) => {
   try {
     const complaints = await Complaint.find({ user: req.user._id });
@@ -103,7 +125,9 @@ export const getMyComplaints = async (req, res) => {
   }
 };
 
+// ===============================
 // UPDATE COMPLAINT STATUS (Admin)
+// ===============================
 export const updateComplaintStatus = async (req, res) => {
   try {
     const { status } = req.body;

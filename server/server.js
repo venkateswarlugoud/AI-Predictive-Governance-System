@@ -8,6 +8,8 @@ import { connectDB } from "./config/db.js";
 
 import userRouter from "./routes/userRoutes.js";
 import complaintRouter from "./routes/complaintRoutes.js";
+import analyticsRoutes from "./routes/analyticsRoutes.js";
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,6 +25,8 @@ app.get("/", (req, res) => {
 // Routes
 app.use("/api/auth", userRouter);
 app.use("/api/complaint", complaintRouter);
+app.use("/api/analytics", analyticsRoutes);
+
 
 // Start server after DB connection
 connectDB().then(() => {
