@@ -1,0 +1,81 @@
+text,category,priority
+"Garbage not collected for a week",Sanitation,High
+"Overflowing dustbin near market",Sanitation,High
+"Dead animal not removed from street",Sanitation,High
+"Garbage truck skipping our area",Sanitation,Medium
+"Plastic waste dumped near lake",Sanitation,Medium
+"Bad odor from waste collection point",Sanitation,Medium
+"Uncovered garbage attracting dogs",Sanitation,High
+"Garbage scattered after rain",Sanitation,Medium
+"Burning of waste causing smoke",Sanitation,High
+"Lack of garbage bins in colony",Sanitation,Low
+"Sewage water flowing on road",Sanitation,High
+"Blocked drainage after rainfall",Sanitation,High
+"Open drain causing mosquito breeding",Sanitation,Medium
+"Sewage leakage near school",Sanitation,High
+"Drain cover broken",Sanitation,Medium
+"Drain overflow during night",Sanitation,High
+"Manhole cover missing",Sanitation,High
+"Drainage smell unbearable",Sanitation,Medium
+"Sewage stagnation near shops",Sanitation,High
+"Dirty public toilet nearby",Sanitation,Medium
+"Potholes causing traffic jams",Roads,High
+"Road surface damaged badly",Roads,High
+"Uneven road near residential area",Roads,Medium
+"Cracks forming on flyover",Roads,High
+"Broken speed breaker",Roads,Medium
+"Road flooded during rain",Roads,High
+"Road markings faded",Roads,Low
+"Footpath broken near bus stop",Roads,Medium
+"Illegal speed breakers",Roads,Medium
+"Loose gravel on road",Roads,Low
+"Collapsed roadside shoulder",Roads,High
+"Road divider damaged",Roads,Medium
+"Signal lights not visible",Roads,High
+"Traffic congestion due to bad road",Roads,High
+"School zone road unsafe",Roads,High
+"Sharp curve without warning sign",Roads,Medium
+"Bridge surface damaged",Roads,High
+"Road widening debris left unattended",Roads,Medium
+"Unfinished road work",Roads,High
+"Broken culvert on road",Roads,High
+"Street light completely off",Electricity,High
+"Multiple street lights not working",Electricity,High
+"Street light pole tilted",Electricity,Medium
+"Street light wire exposed",Electricity,High
+"Street light blinking continuously",Electricity,Low
+"Power cuts every night",Electricity,High
+"Transformer making loud noise",Electricity,High
+"Electric pole damaged by vehicle",Electricity,High
+"Low voltage issue",Electricity,Medium
+"Frequent power trips",Electricity,High
+"Electric sparks during rain",Electricity,High
+"Street lights on even during day",Electricity,Low
+"Power outage in entire locality",Electricity,High
+"Loose electric cables",Electricity,High
+"Street light glass broken",Electricity,Medium
+"Electric meter box open",Electricity,Medium
+"Power fluctuation damaging appliances",Electricity,High
+"Electric pole blocking road",Electricity,Medium
+"Street light covered by tree branches",Electricity,Low
+"Old electric pole at risk of falling",Electricity,High
+"Water supply stopped without notice",Water,High
+"Dirty water coming from tap",Water,High
+"Water leakage from main pipeline",Water,High
+"Water wastage due to broken valve",Water,Medium
+"No water supply in mornings",Water,Medium
+"Low pressure in entire area",Water,Low
+"Drinking water smells bad",Water,High
+"Water overflow from tank",Water,Medium
+"Pipeline burst after road work",Water,High
+"Water supply only once in two days",Water,Medium
+"Contaminated water causing illness",Water,High
+"Water meter damaged",Water,Medium
+"Public tap not working",Water,Low
+"Water leakage near electric pole",Water,High
+"Water line exposed",Water,Medium
+"Illegal water connection",Water,Medium
+"Water tank not cleaned",Water,Medium
+"Insufficient water during summer",Water,High
+"Water pipeline rusted",Water,Medium
+"Water pressure fluctuates daily",Water,Low
