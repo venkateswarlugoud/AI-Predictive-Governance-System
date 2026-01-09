@@ -7,11 +7,15 @@ const AdminDashboard = () => {
   const { user } = useAuth();
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [priorityStats, setPriorityStats] = useState({ High: 0, Medium: 0, Low: 0 });
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     fetchComplaints();
+    fetchPriorityStats();
   }, []);
 
   const fetchComplaints = async () => {
@@ -30,6 +34,23 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchPriorityStats = async () => {
+    try {
+      const response = await API.get("/analytics/by-priority");
+      if (response.data.success && response.data.priorities) {
+        const stats = { High: 0, Medium: 0, Low: 0 };
+        response.data.priorities.forEach((item) => {
+          if (item._id && stats.hasOwnProperty(item._id)) {
+            stats[item._id] = item.count || 0;
+          }
+        });
+        setPriorityStats(stats);
+      }
+    } catch (error) {
+      console.error("Failed to fetch priority stats:", error);
+    }
+  };
+
   const updateStatus = async (id, status) => {
     try {
       const response = await API.put(`/complaint/${id}`, { status });
@@ -37,6 +58,8 @@ const AdminDashboard = () => {
         setComplaints((prev) =>
           prev.map((c) => (c._id === id ? { ...c, status: response.data.complaint?.status || status } : c))
         );
+        setSuccessMessage("Status updated successfully");
+        setTimeout(() => setSuccessMessage(""), 3000);
       } else {
         alert(response.data.message || "Failed to update status.");
       }
@@ -56,6 +79,15 @@ const AdminDashboard = () => {
     return statusMap[status] || "badge-new";
   };
 
+  const getPriorityBadge = (priority) => {
+    const priorityMap = {
+      High: "badge-priority-high",
+      Medium: "badge-priority-medium",
+      Low: "badge-priority-low",
+    };
+    return priorityMap[priority] || "badge-priority-low";
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     try {
@@ -71,25 +103,24 @@ const AdminDashboard = () => {
     }
   };
 
+  // Get unique categories from complaints
+  const categories = [...new Set(complaints.map((c) => c.category).filter(Boolean))].sort();
+
   const filteredComplaints = complaints.filter((complaint) => {
-    let matchesFilter = filter === "all" || complaint.status === filter;
-    if (filter === "New") {
-      matchesFilter = complaint.status === "New" || complaint.status === "Pending";
-    }
-    const matchesSearch =
-      searchTerm === "" ||
-      (complaint.title && complaint.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (complaint.description && complaint.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (complaint.location && complaint.location.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (complaint.category && complaint.category.toLowerCase().includes(searchTerm.toLowerCase()));
-    return matchesFilter && matchesSearch;
+    const matchesStatus =
+      statusFilter === "all" ||
+      complaint.status === statusFilter ||
+      (statusFilter === "New" && (complaint.status === "New" || complaint.status === "Pending"));
+    const matchesPriority = priorityFilter === "all" || complaint.priority === priorityFilter;
+    const matchesCategory = categoryFilter === "all" || complaint.category === categoryFilter;
+    return matchesStatus && matchesPriority && matchesCategory;
   });
 
   const stats = {
     total: complaints.length,
-    new: complaints.filter((c) => c.status === "New" || c.status === "Pending").length,
-    inProgress: complaints.filter((c) => c.status === "In Progress").length,
-    resolved: complaints.filter((c) => c.status === "Resolved").length,
+    high: priorityStats.High,
+    medium: priorityStats.Medium,
+    low: priorityStats.Low,
   };
 
   if (loading) {
@@ -120,74 +151,84 @@ const AdminDashboard = () => {
 
         <div className="admin-stats-grid">
           <div className="admin-stat-card">
-            <div className="admin-stat-icon">📊</div>
-            <div>
+            <div className="admin-stat-content">
               <div className="admin-stat-value">{stats.total}</div>
-              <div className="admin-stat-label">Total Grievances</div>
+              <div className="admin-stat-label">Total Complaints</div>
             </div>
           </div>
-          <div className="admin-stat-card admin-stat-new">
-            <div className="admin-stat-icon">🆕</div>
-            <div>
-              <div className="admin-stat-value">{stats.new}</div>
-              <div className="admin-stat-label">New</div>
+          <div className="admin-stat-card admin-stat-high">
+            <div className="admin-stat-content">
+              <div className="admin-stat-value">{stats.high}</div>
+              <div className="admin-stat-label">High Priority</div>
+              <div className="admin-stat-sublabel">AI-detected</div>
             </div>
           </div>
-          <div className="admin-stat-card admin-stat-progress">
-            <div className="admin-stat-icon">⚙️</div>
-            <div>
-              <div className="admin-stat-value">{stats.inProgress}</div>
-              <div className="admin-stat-label">In Progress</div>
+          <div className="admin-stat-card admin-stat-medium">
+            <div className="admin-stat-content">
+              <div className="admin-stat-value">{stats.medium}</div>
+              <div className="admin-stat-label">Medium Priority</div>
+              <div className="admin-stat-sublabel">AI-detected</div>
             </div>
           </div>
-          <div className="admin-stat-card admin-stat-resolved">
-            <div className="admin-stat-icon">✅</div>
-            <div>
-              <div className="admin-stat-value">{stats.resolved}</div>
-              <div className="admin-stat-label">Resolved</div>
+          <div className="admin-stat-card admin-stat-low">
+            <div className="admin-stat-content">
+              <div className="admin-stat-value">{stats.low}</div>
+              <div className="admin-stat-label">Low Priority</div>
+              <div className="admin-stat-sublabel">AI-detected</div>
             </div>
           </div>
         </div>
 
+        {successMessage && (
+          <div className="admin-success-message">
+            {successMessage}
+          </div>
+        )}
+
         <div className="admin-section">
           <div className="admin-section-header">
-            <h2 className="section-title">All Municipal Grievances</h2>
-            <div className="admin-controls">
-              <div className="search-box">
-                <input
-                  type="text"
-                  placeholder="Search municipal grievances..."
-                  className="search-input"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                <span className="search-icon">🔍</span>
+            <h2 className="section-title">Complaints Management</h2>
+            <div className="admin-filters">
+              <div className="filter-group">
+                <label className="filter-label">Category</label>
+                <select
+                  className="form-select filter-select"
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                >
+                  <option value="all">All Categories</option>
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="filter-tabs">
-                <button
-                  className={`filter-tab ${filter === "all" ? "active" : ""}`}
-                  onClick={() => setFilter("all")}
+              <div className="filter-group">
+                <label className="filter-label">Priority</label>
+                <select
+                  className="form-select filter-select"
+                  value={priorityFilter}
+                  onChange={(e) => setPriorityFilter(e.target.value)}
                 >
-                  All
-                </button>
-                <button
-                  className={`filter-tab ${filter === "New" ? "active" : ""}`}
-                  onClick={() => setFilter("New")}
+                  <option value="all">All Priorities</option>
+                  <option value="High">High</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Low">Low</option>
+                </select>
+              </div>
+              <div className="filter-group">
+                <label className="filter-label">Status</label>
+                <select
+                  className="form-select filter-select"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
                 >
-                  New/Pending
-                </button>
-                <button
-                  className={`filter-tab ${filter === "In Progress" ? "active" : ""}`}
-                  onClick={() => setFilter("In Progress")}
-                >
-                  In Progress
-                </button>
-                <button
-                  className={`filter-tab ${filter === "Resolved" ? "active" : ""}`}
-                  onClick={() => setFilter("Resolved")}
-                >
-                  Resolved
-                </button>
+                  <option value="all">All Status</option>
+                  <option value="New">New</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Resolved">Resolved</option>
+                </select>
               </div>
             </div>
           </div>
@@ -195,13 +236,11 @@ const AdminDashboard = () => {
           {filteredComplaints.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">📋</div>
-              <h3>No grievances found</h3>
+              <h3>No complaints found</h3>
               <p>
-                {searchTerm
-                  ? "No municipal grievances match your search criteria."
-                  : filter !== "all"
-                  ? `No grievances with status "${filter}".`
-                  : "No municipal grievances have been submitted yet."}
+                {statusFilter !== "all" || priorityFilter !== "all" || categoryFilter !== "all"
+                  ? "No complaints match the selected filters."
+                  : "No complaints have been submitted yet."}
               </p>
             </div>
           ) : (
@@ -209,35 +248,35 @@ const AdminDashboard = () => {
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>ID</th>
-                    <th>Title</th>
+                    <th>Complaint Title</th>
                     <th>Category</th>
-                    <th>Location</th>
-                    <th>Submitted By</th>
-                    <th>Date</th>
+                    <th>Priority</th>
                     <th>Status</th>
-                    <th>Actions</th>
+                    <th>Location</th>
+                    <th>Created Date</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredComplaints.map((complaint) => (
                     <tr key={complaint._id}>
-                      <td className="table-id">#{complaint._id.slice(-6)}</td>
                       <td className="table-title">
                         <div className="table-title-text">{complaint.title || "N/A"}</div>
                         <div className="table-description">{complaint.description || "No description"}</div>
                       </td>
                       <td className="table-category">{complaint.category || "N/A"}</td>
-                      <td className="table-location">{complaint.location || "N/A"}</td>
-                      <td className="table-user">
-                        {complaint.user?.name || complaint.userId?.name || "N/A"}
-                      </td>
-                      <td className="table-date">{formatDate(complaint.createdAt)}</td>
                       <td>
-                        <span className={`badge ${getStatusBadge(complaint.status)}`}>
-                          {complaint.status}
+                        <span className={`badge ${getPriorityBadge(complaint.priority)}`}>
+                          {complaint.priority || "N/A"}
                         </span>
                       </td>
+                      <td>
+                        <span className={`badge ${getStatusBadge(complaint.status)}`}>
+                          {complaint.status || "New"}
+                        </span>
+                      </td>
+                      <td className="table-location">{complaint.location || "N/A"}</td>
+                      <td className="table-date">{formatDate(complaint.createdAt)}</td>
                       <td>
                         <select
                           className="status-select"

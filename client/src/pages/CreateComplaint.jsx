@@ -7,23 +7,12 @@ const CreateComplaint = () => {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    category: "",
     location: "",
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
-
-  const categories = [
-    "Road Damage",
-    "Garbage Collection",
-    "Water Supply",
-    "Street Lighting",
-    "Drainage",
-    "Sanitation",
-    "Other Municipal Issue",
-  ];
 
   const validate = () => {
     const newErrors = {};
@@ -38,10 +27,6 @@ const CreateComplaint = () => {
       newErrors.description = "Description is required";
     } else if (formData.description.trim().length < 20) {
       newErrors.description = "Description must be at least 20 characters";
-    }
-
-    if (!formData.category) {
-      newErrors.category = "Please select a category";
     }
 
     if (!formData.location.trim()) {
@@ -133,27 +118,6 @@ const CreateComplaint = () => {
                 onChange={handleChange}
               />
               {errors.title && <div className="error-message">{errors.title}</div>}
-            </div>
-
-            <div className="form-group">
-              <label className="form-label" htmlFor="category">
-                Category <span className="required">*</span>
-              </label>
-              <select
-                id="category"
-                name="category"
-                className="form-select"
-                value={formData.category}
-                onChange={handleChange}
-              >
-                <option value="">Select a category</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-              {errors.category && <div className="error-message">{errors.category}</div>}
             </div>
 
             <div className="form-group">
