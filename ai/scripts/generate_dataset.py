@@ -1,118 +1,127 @@
 import random
 import csv
 
-CATEGORIES = {
+categories = {
     "Sanitation": {
-        "High": [
-            "sewage overflow near houses causing health risk",
-            "dead animal lying on road for two days",
-            "open drainage spreading foul smell",
-            "garbage not collected for a week attracting mosquitoes",
-            "manhole overflow near school causing danger"
+        "high": [
+            "Open sewage overflowing near {place} causing health risk",
+            "Dead animal lying on road near {place}",
+            "Garbage not collected for many days near {place}",
+            "Manhole overflow near {place} spreading foul smell",
+            "Sewage water entering houses near {place}"
         ],
-        "Medium": [
-            "garbage collection irregular in our area",
-            "bad smell from waste collection point",
-            "open drain needs cleaning",
-            "garbage bins are insufficient",
-            "waste scattered after rain"
+        "medium": [
+            "Garbage collection irregular near {place}",
+            "Bad smell from waste bins near {place}",
+            "Mosquito breeding due to stagnant water near {place}",
+            "Overflowing dustbin near {place}",
+            "Public toilet dirty near {place}"
         ],
-        "Low": [
-            "dustbin lid broken",
-            "garbage truck comes late",
-            "public toilet needs cleaning",
-            "minor smell near garbage area",
-            "bin placement is inconvenient"
+        "low": [
+            "Minor garbage scattered near {place}",
+            "Dustbin lid broken near {place}",
+            "Occasional bad smell near {place}",
+            "Waste collection delayed by one day near {place}",
+            "Dry leaves accumulated near {place}"
         ]
     },
 
     "Roads": {
-        "High": [
-            "large pothole causing accidents near bus stand",
-            "road completely damaged and unsafe",
-            "bridge surface broken posing danger",
-            "road collapsed after heavy rain",
-            "open pit on road without barricade"
+        "high": [
+            "Large pothole causing accidents near {place}",
+            "Road collapsed near {place} causing danger",
+            "Bridge damaged near {place}",
+            "Road flooded near {place} blocking traffic",
+            "Deep pit on road near {place}"
         ],
-        "Medium": [
-            "uneven road causing slow traffic",
-            "potholes forming on internal road",
-            "speed breaker damaged",
-            "road flooding during rain",
-            "footpath partially broken"
+        "medium": [
+            "Uneven road slowing traffic near {place}",
+            "Broken footpath near {place}",
+            "Loose gravel on road near {place}",
+            "Speed breaker damaged near {place}",
+            "Road surface cracks near {place}"
         ],
-        "Low": [
-            "road markings faded",
-            "small cracks on road surface",
-            "dust on road",
-            "minor gravel on roadside",
-            "signboard needs repainting"
+        "low": [
+            "Faded road markings near {place}",
+            "Minor road patch damage near {place}",
+            "Small crack on road near {place}",
+            "Dust on roadside near {place}",
+            "Road sign slightly bent near {place}"
         ]
     },
 
     "Electricity": {
-        "High": [
-            "electric wire snapped causing danger",
-            "transformer sparking near houses",
-            "live wire exposed on street",
-            "electric pole about to fall",
-            "power outage affecting entire area"
+        "high": [
+            "Live electric wire exposed near {place}",
+            "Electric pole fallen near {place}",
+            "Transformer blast reported near {place}",
+            "Electric sparks during rain near {place}",
+            "High voltage fluctuation damaging appliances near {place}"
         ],
-        "Medium": [
-            "street light not working",
-            "frequent power cuts at night",
-            "voltage fluctuation issue",
-            "electric pole tilted slightly",
-            "street lights blinking"
+        "medium": [
+            "Street lights not working near {place}",
+            "Frequent power cuts near {place}",
+            "Low voltage issue near {place}",
+            "Electric pole tilted near {place}",
+            "Street light blinking near {place}"
         ],
-        "Low": [
-            "street light dim",
-            "street light covered by tree branches",
-            "electric box needs maintenance",
-            "minor power interruption",
-            "old pole needs inspection"
+        "low": [
+            "Street light dim near {place}",
+            "Electric box rusted near {place}",
+            "Old electric pole near {place}",
+            "Wires tangled near pole near {place}",
+            "Street light covered by tree branches near {place}"
         ]
     },
 
     "Water": {
-        "High": [
-            "water pipeline burst flooding road",
-            "dirty water supply causing illness",
-            "no water supply for three days",
-            "contaminated water near school",
-            "major leakage wasting water"
+        "high": [
+            "Water pipeline burst near {place}",
+            "Dirty drinking water supplied near {place}",
+            "No water supply for several days near {place}",
+            "Water contamination causing illness near {place}",
+            "Major leakage flooding road near {place}"
         ],
-        "Medium": [
-            "low water pressure in mornings",
-            "water supply irregular",
-            "pipeline leakage near street",
-            "water tank overflow",
-            "public tap not working"
+        "medium": [
+            "Low water pressure near {place}",
+            "Water supply irregular near {place}",
+            "Water leakage near {place}",
+            "Public tap not working near {place}",
+            "Water overflow from tank near {place}"
         ],
-        "Low": [
-            "slow water flow",
-            "minor leakage at tap",
-            "water meter needs replacement",
-            "tap handle broken",
-            "water timing inconvenient"
+        "low": [
+            "Slow water flow near {place}",
+            "Minor leakage from tap near {place}",
+            "Water meter damaged near {place}",
+            "Water pressure fluctuates slightly near {place}",
+            "Water timing delay near {place}"
         ]
     }
 }
 
-ROWS = []
+places = [
+    "Ward 1", "Ward 2", "Ward 3", "Main Road", "Bus Stand",
+    "Near School", "Near Hospital", "Market Area",
+    "Sector 5", "Sector 7", "Residential Colony"
+]
 
-for category, priorities in CATEGORIES.items():
-    for priority, texts in priorities.items():
-        for _ in range(150):  # controls dataset size
-            text = random.choice(texts)
-            ROWS.append([text, category, priority])
+rows = []
 
-random.shuffle(ROWS)
+TARGET_PER_CATEGORY = 1000  # 4 categories → 3000 rows
 
-with open("complaints.csv", "w", newline="", encoding="utf-8") as f:
+for category, priority_groups in categories.items():
+    for priority, templates in priority_groups.items():
+        for _ in range(TARGET_PER_CATEGORY // 3):
+            template = random.choice(templates)
+            place = random.choice(places)
+            text = template.format(place=place)
+            rows.append([text, category, priority.capitalize()])
+
+random.shuffle(rows)
+
+with open("data/complaints.csv", "w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
     writer.writerow(["text", "category", "priority"])
-    writer.writerows(ROWS)
+    writer.writerows(rows)
 
-print("Dataset generated successfully!")
-print("Total records:", len(ROWS))
+print(f"Dataset generated with {len(rows)} rows")
