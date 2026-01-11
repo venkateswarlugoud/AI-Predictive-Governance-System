@@ -25,13 +25,15 @@ export const createComplaint = async (req, res) => {
     }
 
     // 🔹 Step 1: AI prediction
-    const aiResult = await predictComplaint(description);
+    const aiInputText = `${title}. ${description}`;
+    const aiResult = await predictComplaint(aiInputText);
+
 
     // 🔹 Step 2: Rule-based category
-    const finalCategory = refineCategory(description, aiResult.category);
+    const finalCategory = refineCategory(aiInputText, aiResult.category);
 
     // 🔹 Step 3: Rule-based priority
-    const finalPriority = refinePriority(description, aiResult.priority);
+    const finalPriority = refinePriority(aiInputText, aiResult.priority);
 
     // 🔹 Step 4: Save
     const complaint = await Complaint.create({
