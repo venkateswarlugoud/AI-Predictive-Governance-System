@@ -1,0 +1,16 @@
+# ENV FILES
+.env
+.env.*
+server/.env
+
+# NODE
+node_modules/
+
+# PYTHON
+venv/
+ai/venv/
+__pycache__/
+
+# ML ARTIFACTS
+ai/model/*.pkl
+ai/model/*.joblib
