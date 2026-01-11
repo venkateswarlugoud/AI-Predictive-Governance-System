@@ -1,15 +1,64 @@
 // server/services/categoryRules.js
+// Permanent, policy-driven category resolution for municipal governance
 
 export const refineCategory = (description, aiCategory) => {
   const text = description.toLowerCase();
 
-  const has = (...words) => words.some(w => text.includes(w));
+  // --------------------------------------------------
+  // Keyword dictionaries by department
+  // --------------------------------------------------
 
-  // 🚧 Roads
-  if (
-    has(
+  const CATEGORY_KEYWORDS = {
+    Sanitation: [
+      "garbage",
+      "waste",
+      "trash",
+      "dustbin",
+      "sewage",
+      "drain",
+      "drainage",
+      "nala",
+      "manhole",
+      "overflow",
+      "bad smell",
+      "foul smell",
+      "dead animal",
+      "unclean",
+    ],
+
+    Electricity: [
+      "electric",
+      "electricity",
+      "street light",
+      "streetlight",
+      "power",
+      "power cut",
+      "current",
+      "voltage",
+      "wire",
+      "pole",
+      "transformer",
+      "spark",
+      "blackout",
+    ],
+
+    Water: [
+      "water",
+      "pipeline",
+      "leakage",
+      "leak",
+      "tap",
+      "tank",
+      "supply",
+      "drinking water",
+      "no water",
+      "water logging",
+    ],
+
+    Roads: [
       "pothole",
       "road",
+      "street",
       "gravel",
       "speed breaker",
       "divider",
@@ -17,61 +66,53 @@ export const refineCategory = (description, aiCategory) => {
       "bridge",
       "culvert",
       "footpath",
-      "road damage"
-    )
-  ) {
-    return "Roads";
+      "asphalt",
+      "traffic",
+      "road damage",
+    ],
+  };
+
+  // --------------------------------------------------
+  // Score calculation (evidence-based)
+  // --------------------------------------------------
+
+  const scores = {
+    Sanitation: 0,
+    Electricity: 0,
+    Water: 0,
+    Roads: 0,
+  };
+
+  for (const category in CATEGORY_KEYWORDS) {
+    CATEGORY_KEYWORDS[category].forEach((keyword) => {
+      if (text.includes(keyword)) {
+        scores[category]++;
+      }
+    });
   }
 
-  // ⚡ Electricity
-  if (
-    has(
-      "electric",
-      "wire",
-      "pole",
-      "transformer",
-      "street light",
-      "voltage",
-      "power cut",
-      "current",
-      "spark"
-    )
-  ) {
-    return "Electricity";
+  // --------------------------------------------------
+  // Governance dominance order (policy decision)
+  // --------------------------------------------------
+  // Sanitation > Electricity > Water > Roads
+
+  const DOMINANCE_ORDER = [
+    "Sanitation",
+    "Electricity",
+    "Water",
+    "Roads",
+  ];
+
+  const MIN_KEYWORD_MATCH = 1; // minimum evidence threshold
+
+  for (const category of DOMINANCE_ORDER) {
+    if (scores[category] >= MIN_KEYWORD_MATCH) {
+      return category;
+    }
   }
 
-  // 🚮 Sanitation
-  if (
-    has(
-      "garbage",
-      "waste",
-      "wastage",
-      "sewage",
-      "drain",
-      "manhole",
-      "nala",
-      "dead animal",
-      "bad smell"
-    )
-  ) {
-    return "Sanitation";
-  }
-
-  // 💧 Water
-  if (
-    has(
-      "water",
-      "pipeline",
-      "leakage",
-      "tap",
-      "tank",
-      "supply",
-      "drinking water"
-    )
-  ) {
-    return "Water";
-  }
-
-  // 🔁 fallback to AI if nothing matched
+  // --------------------------------------------------
+  // Fallback to AI (only when text is truly ambiguous)
+  // --------------------------------------------------
   return aiCategory;
 };

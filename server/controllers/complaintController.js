@@ -8,12 +8,12 @@ import { refineCategory } from "../services/categoryRules.js";
 // =======================================
 export const createComplaint = async (req, res) => {
   try {
-    const { title, description, location } = req.body;
+    const { title, description, location, ward } = req.body;
 
-    if (!title || !description || !location) {
+    if (!title || !description || !location || !ward) {
       return res.status(400).json({
         success: false,
-        message: "Title, description and location are required",
+        message: "Title, description, location and ward are required",
       });
     }
 
@@ -24,22 +24,22 @@ export const createComplaint = async (req, res) => {
       });
     }
 
-    // 🔹 Step 1: AI prediction
+    // Step 1: AI prediction
     const aiInputText = `${title}. ${description}`;
     const aiResult = await predictComplaint(aiInputText);
 
-
-    // 🔹 Step 2: Rule-based category
+    // Step 2: Rule-based category refinement
     const finalCategory = refineCategory(aiInputText, aiResult.category);
 
-    // 🔹 Step 3: Rule-based priority
+    // Step 3: Rule-based priority refinement
     const finalPriority = refinePriority(aiInputText, aiResult.priority);
 
-    // 🔹 Step 4: Save
+    // Step 4: Persist complaint
     const complaint = await Complaint.create({
       title,
       description,
       location,
+      ward,
       category: finalCategory,
       priority: finalPriority,
       user: req.user._id,
@@ -68,12 +68,13 @@ export const createComplaint = async (req, res) => {
 // =======================================
 export const getAllComplaints = async (req, res) => {
   try {
-    const { category, priority, status } = req.query;
+    const { category, priority, status, ward } = req.query;
 
     const filter = {};
     if (category) filter.category = category;
     if (priority) filter.priority = priority;
     if (status) filter.status = status;
+    if (ward) filter.ward = ward;
 
     const complaints = await Complaint.aggregate([
       { $match: filter },
@@ -107,13 +108,14 @@ export const getAllComplaints = async (req, res) => {
   }
 };
 
-
 // =======================================
 // GET MY COMPLAINTS (Citizen)
 // =======================================
 export const getMyComplaints = async (req, res) => {
   try {
-    const complaints = await Complaint.find({ user: req.user._id });
+    const complaints = await Complaint.find({ user: req.user._id }).sort({
+      createdAt: -1,
+    });
 
     return res.status(200).json({
       success: true,
