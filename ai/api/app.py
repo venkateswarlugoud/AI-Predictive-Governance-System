@@ -1,25 +1,38 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import joblib
-import os
+from sentence_transformers import SentenceTransformer
+import numpy as np
 
-app = FastAPI(title="Municipal Complaint AI Service")
+app = FastAPI(title="Municipal AI Service")
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODEL_DIR = os.path.join(BASE_DIR, "model")
+model = SentenceTransformer("all-MiniLM-L6-v2")
 
-category_model = joblib.load(os.path.join(MODEL_DIR, "category_model.pkl"))
-priority_model = joblib.load(os.path.join(MODEL_DIR, "priority_model.pkl"))
-
-class ComplaintRequest(BaseModel):
+class EmbedRequest(BaseModel):
     text: str
 
-@app.post("/predict")
-def predict_complaint(data: ComplaintRequest):
-    category = category_model.predict([data.text])[0]
-    priority = priority_model.predict([data.text])[0]
+class SimilarityRequest(BaseModel):
+    text1: str
+    text2: str
+
+def cosine(a, b):
+    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+
+@app.post("/embed")
+def embed(req: EmbedRequest):
+    vec = model.encode(req.text).tolist()
+    return {"embedding": vec}
+
+@app.post("/similarity")
+def similarity(req: SimilarityRequest):
+    v1 = model.encode(req.text1)
+    v2 = model.encode(req.text2)
+    score = cosine(v1, v2)
 
     return {
-        "category": category,
-        "priority": priority
+        "similarityScore": round(score, 3),
+        "level": (
+            "HIGHLY_SIMILAR" if score >= 0.85 else
+            "RELATED" if score >= 0.5 else
+            "UNRELATED"
+        )
     }
