@@ -1,61 +1,66 @@
 import Complaint from "../models/Complaint.js";
-import { predictComplaint } from "../services/aiService.js";
 import { refinePriority } from "../services/priorityRules.js";
 import { refineCategory } from "../services/categoryRules.js";
 
 // =======================================
-// CREATE COMPLAINT (Citizen) – AI + RULES
+// CREATE COMPLAINT (Citizen)
 // =======================================
 export const createComplaint = async (req, res) => {
   try {
+    console.log("📝 CREATE COMPLAINT HIT");
+    console.log("REQ BODY:", req.body);
+    console.log("REQ USER:", req.user);
+
     const { title, description, location, ward } = req.body;
 
+    // Validation
     if (!title || !description || !location || !ward) {
       return res.status(400).json({
         success: false,
-        message: "Title, description, location and ward are required",
+        message: "Missing required fields",
       });
     }
 
+    // Auth check
     if (!req.user || !req.user._id) {
       return res.status(401).json({
         success: false,
-        message: "User not authenticated",
+        message: "Not authenticated",
       });
     }
 
-    // Step 1: AI prediction
-    const aiInputText = `${title}. ${description}`;
-    const aiResult = await predictComplaint(aiInputText);
+    const text = `${title}. ${description}`;
 
-    // Step 2: Rule-based category refinement
-    const finalCategory = refineCategory(aiInputText, aiResult.category);
+    // ✅ RULE-BASED LOGIC ONLY (NO AI)
+    const category = refineCategory(text, "Sanitation");
+    const priority = refinePriority(text, "Medium");
 
-    // Step 3: Rule-based priority refinement
-    const finalPriority = refinePriority(aiInputText, aiResult.priority);
-
-    // Step 4: Persist complaint
     const complaint = await Complaint.create({
       title,
       description,
       location,
       ward,
-      category: finalCategory,
-      priority: finalPriority,
+      category,
+      priority,
+      categoryConfidence: 1,
+      priorityConfidence: 1,
+      isRepeated: false,
+      similarityScore: 0,
+      matchedComplaint: null,
       user: req.user._id,
     });
 
+    console.log("✅ COMPLAINT CREATED:", complaint._id);
+
     return res.status(201).json({
       success: true,
-      aiPrediction: aiResult,
-      finalDecision: {
-        category: finalCategory,
-        priority: finalPriority,
-      },
       complaint,
     });
-  } catch (error) {
-    console.error("Create complaint error:", error);
+
+  } catch (e) {
+    console.error("❌ CREATE ERROR MESSAGE:", e.message);
+    console.error("❌ CREATE ERROR STACK:", e.stack);
+
     return res.status(500).json({
       success: false,
       message: "Failed to create complaint",
@@ -64,99 +69,29 @@ export const createComplaint = async (req, res) => {
 };
 
 // =======================================
-// GET ALL COMPLAINTS (Admin – Sorted)
+// GET ALL COMPLAINTS (Admin)
 // =======================================
 export const getAllComplaints = async (req, res) => {
-  try {
-    const { category, priority, status, ward } = req.query;
-
-    const filter = {};
-    if (category) filter.category = category;
-    if (priority) filter.priority = priority;
-    if (status) filter.status = status;
-    if (ward) filter.ward = ward;
-
-    const complaints = await Complaint.aggregate([
-      { $match: filter },
-      {
-        $addFields: {
-          priorityOrder: {
-            $switch: {
-              branches: [
-                { case: { $eq: ["$priority", "High"] }, then: 1 },
-                { case: { $eq: ["$priority", "Medium"] }, then: 2 },
-                { case: { $eq: ["$priority", "Low"] }, then: 3 },
-              ],
-              default: 4,
-            },
-          },
-        },
-      },
-      { $sort: { priorityOrder: 1, createdAt: -1 } },
-    ]);
-
-    return res.status(200).json({
-      success: true,
-      complaints,
-    });
-  } catch (error) {
-    console.error("Get complaints error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch complaints",
-    });
-  }
+  const complaints = await Complaint.find().sort({ createdAt: -1 });
+  res.json({ success: true, complaints });
 };
 
 // =======================================
 // GET MY COMPLAINTS (Citizen)
 // =======================================
 export const getMyComplaints = async (req, res) => {
-  try {
-    const complaints = await Complaint.find({ user: req.user._id }).sort({
-      createdAt: -1,
-    });
-
-    return res.status(200).json({
-      success: true,
-      complaints,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch complaints",
-    });
-  }
+  const complaints = await Complaint.find({ user: req.user._id });
+  res.json({ success: true, complaints });
 };
 
 // =======================================
 // UPDATE STATUS (Admin)
 // =======================================
 export const updateComplaintStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
-
-    if (!["New", "In Progress", "Resolved"].includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid status value",
-      });
-    }
-
-    const updated = await Complaint.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
-
-    return res.status(200).json({
-      success: true,
-      complaint: updated,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update status",
-    });
-  }
+  const updated = await Complaint.findByIdAndUpdate(
+    req.params.id,
+    { status: req.body.status },
+    { new: true }
+  );
+  res.json({ success: true, complaint: updated });
 };

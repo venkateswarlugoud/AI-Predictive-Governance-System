@@ -10,6 +10,8 @@ import userRouter from "./routes/userRoutes.js";
 import complaintRouter from "./routes/complaintRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
 
+console.log("🚀 SERVER.JS FILE LOADED");
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,9 +25,15 @@ app.get("/", (req, res) => {
 });
 
 // Routes
+app.use((req, res, next) => {
+  console.log("🔥 HIT:", req.method, req.originalUrl);
+  next();
+});
+
 app.use("/api/auth", userRouter);
 app.use("/api/complaint", complaintRouter);
 app.use("/api/analytics", analyticsRoutes);
+
 
 
 // Start server after DB connection

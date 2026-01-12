@@ -2,24 +2,17 @@ import mongoose from "mongoose";
 
 const complaintSchema = new mongoose.Schema(
   {
-    title: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+    title: { type: String, required: true, trim: true },
+    description: { type: String, required: true },
 
-    description: {
-      type: String,
-      required: true,
-    },
-
-    // AI predicted fields
     category: {
       type: String,
       enum: ["Sanitation", "Roads", "Electricity", "Water"],
       required: true,
       index: true,
     },
+
+    categoryConfidence: Number,
 
     priority: {
       type: String,
@@ -28,17 +21,23 @@ const complaintSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Citizen-friendly free text
-    location: {
-      type: String,
-      required: true,
+    priorityConfidence: Number,
+
+    location: { type: String, required: true },
+    ward: { type: String, required: true, index: true },
+
+    // 🔥 EMBEDDING (for repeat detection)
+    embedding: {
+      type: [Number],
+      index: false, // cosine done in app, not DB
     },
 
-    // Administrative unit (CRITICAL for analytics & prediction)
-    ward: {
-      type: String,
-      required: true,
-      index: true,
+    isRepeated: { type: Boolean, default: false },
+    similarityScore: Number,
+
+    matchedComplaint: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Complaint",
     },
 
     status: {
@@ -54,25 +53,12 @@ const complaintSchema = new mongoose.Schema(
       required: true,
     },
 
-    imageUrl: {
-      type: String,
-    },
-
-    // Normalized time fields (CRITICAL)
-    complaintMonth: {
-      type: Number, // 1 - 12
-      index: true,
-    },
-
-    complaintYear: {
-      type: Number,
-      index: true,
-    },
+    complaintMonth: Number,
+    complaintYear: Number,
   },
   { timestamps: true }
 );
 
-// Automatically derive month & year
 complaintSchema.pre("save", function (next) {
   const date = this.createdAt || new Date();
   this.complaintMonth = date.getMonth() + 1;
@@ -80,5 +66,4 @@ complaintSchema.pre("save", function (next) {
   next();
 });
 
-const Complaint = mongoose.model("Complaint", complaintSchema);
-export default Complaint;
+export default mongoose.model("Complaint", complaintSchema);

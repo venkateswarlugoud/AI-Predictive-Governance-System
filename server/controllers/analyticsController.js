@@ -239,3 +239,34 @@ export const forecastWardComplaints = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+/* ==================================================
+   11️⃣ WARD SNAPSHOT (FREQUENTLY AFFECTED AREAS)
+================================================== */
+export const getComplaintsByWard = async (req, res) => {
+  try {
+    const data = await Complaint.aggregate([
+      {
+        $match: {
+          ward: { $ne: null }
+        }
+      },
+      {
+        $group: {
+          _id: "$ward",
+          totalComplaints: { $sum: 1 }
+        }
+      },
+      { $sort: { totalComplaints: -1 } }
+    ]);
+
+    res.status(200).json({
+      success: true,
+      wards: data
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};

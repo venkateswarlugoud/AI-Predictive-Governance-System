@@ -1,14 +1,10 @@
+console.log("✅ aiService.js loaded");
+
 import axios from "axios";
 
-export const predictComplaint = async (text) => {
-  try {
-    const response = await axios.post("http://127.0.0.1:8000/predict", {
-      text: text,
-    });
+const AI_BASE_URL = "http://127.0.0.1:8000";
 
-    return response.data; // { category, priority }
-  } catch (error) {
-    console.error("AI Service Error:", error.message);
-    throw new Error("AI prediction failed");
-  }
+export const predictComplaint = async (text) => {
+  const response = await axios.post(`${AI_BASE_URL}/predict`, { text });
+  return response.data;
 };

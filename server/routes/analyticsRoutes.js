@@ -12,7 +12,8 @@ import {
   getCategoryTrendDirection,
   getWardTrendDirection,
   forecastCategoryComplaints,
-  forecastWardComplaints
+  forecastWardComplaints,
+  getComplaintsByWard
 } from "../controllers/analyticsController.js";
 
 const router = express.Router();
@@ -30,5 +31,6 @@ router.get("/trend/ward", protectRoute, adminOnly, getWardTrendDirection);
 
 router.get("/forecast/category", protectRoute, adminOnly, forecastCategoryComplaints);
 router.get("/forecast/ward", protectRoute, adminOnly, forecastWardComplaints);
+router.get("/by-ward", protectRoute, adminOnly, getComplaintsByWard);
 
 export default router;
