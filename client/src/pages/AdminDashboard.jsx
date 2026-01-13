@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import API from "../api/axios";
+import { getHotspots, getSpikes, getAllAlerts } from "../api/adminServices";
 import {
   BarChart,
   Bar,
@@ -13,13 +15,12 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  LineChart,
-  Line
 } from "recharts";
 import "./AdminDashboard.css";
 
 const AdminDashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("complaints");
   
   // Complaints Management State
@@ -37,26 +38,33 @@ const AdminDashboard = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [lastRefreshTime, setLastRefreshTime] = useState(new Date());
 
-  // Analytics Overview State (Screen 1)
+  // Monitoring State
+  const [hotspots, setHotspots] = useState([]);
+  const [spikes, setSpikes] = useState([]);
+  const [monitoringLoading, setMonitoringLoading] = useState(false);
+  const [monitoringError, setMonitoringError] = useState(null);
+  const [hotspotSortField, setHotspotSortField] = useState("severity");
+  const [hotspotSortOrder, setHotspotSortOrder] = useState("desc");
+  const [spikeSortField, setSpikeSortField] = useState("spikeRatio");
+  const [spikeSortOrder, setSpikeSortOrder] = useState("desc");
+
+  // Analytics State
   const [analyticsSummary, setAnalyticsSummary] = useState(null);
   const [categoryDistribution, setCategoryDistribution] = useState([]);
   const [priorityDistribution, setPriorityDistribution] = useState([]);
-  const [analyticsLoading, setAnalyticsLoading] = useState(false);
-  const [analyticsError, setAnalyticsError] = useState(null);
-
-  // Early Issue Detection State (Screen 2)
   const [categoryTrends, setCategoryTrends] = useState([]);
   const [wardTrends, setWardTrends] = useState([]);
   const [frequentlyAffectedCategories, setFrequentlyAffectedCategories] = useState([]);
   const [frequentlyAffectedWards, setFrequentlyAffectedWards] = useState([]);
-  const [trendsLoading, setTrendsLoading] = useState(false);
-  const [trendsError, setTrendsError] = useState(null);
-
-  // Predictive Analytics State (Screen 3)
   const [categoryForecasts, setCategoryForecasts] = useState([]);
   const [wardForecasts, setWardForecasts] = useState([]);
-  const [forecastLoading, setForecastLoading] = useState(false);
-  const [forecastError, setForecastError] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState(null);
+
+  // Governance State
+  const [alerts, setAlerts] = useState([]);
+  const [governanceLoading, setGovernanceLoading] = useState(false);
+  const [governanceError, setGovernanceError] = useState(null);
 
   useEffect(() => {
     fetchComplaints();
@@ -68,23 +76,29 @@ const AdminDashboard = () => {
     if (activeTab === "complaints") {
       fetchComplaints();
       fetchPriorityStats();
+    } else if (activeTab === "monitoring") {
+      fetchMonitoring();
     } else if (activeTab === "analytics") {
       fetchAnalyticsOverview();
-    } else if (activeTab === "trends") {
       fetchTrends();
-    } else if (activeTab === "forecast") {
+    } else if (activeTab === "predictive") {
       fetchForecasts();
+    } else if (activeTab === "governance") {
+      fetchAlerts();
     }
     setLastRefreshTime(new Date());
   };
 
   useEffect(() => {
-    if (activeTab === "analytics") {
+    if (activeTab === "monitoring") {
+      fetchMonitoring();
+    } else if (activeTab === "analytics") {
       fetchAnalyticsOverview();
-    } else if (activeTab === "trends") {
       fetchTrends();
-    } else if (activeTab === "forecast") {
+    } else if (activeTab === "predictive") {
       fetchForecasts();
+    } else if (activeTab === "governance") {
+      fetchAlerts();
     }
   }, [activeTab]);
 
@@ -121,7 +135,26 @@ const AdminDashboard = () => {
     }
   };
 
-  // Screen 1: Analytics Overview
+  // Monitoring: Fetch Hotspots and Spikes
+  const fetchMonitoring = async () => {
+    setMonitoringLoading(true);
+    setMonitoringError(null);
+    try {
+      const [hotspotsData, spikesData] = await Promise.all([
+        getHotspots().catch(() => []),
+        getSpikes().catch(() => [])
+      ]);
+      setHotspots(hotspotsData);
+      setSpikes(spikesData);
+    } catch (error) {
+      console.error("Failed to fetch monitoring data:", error);
+      setMonitoringError(error.message || "Failed to load monitoring data");
+    } finally {
+      setMonitoringLoading(false);
+    }
+  };
+
+  // Analytics Overview
   const fetchAnalyticsOverview = async () => {
     setAnalyticsLoading(true);
     setAnalyticsError(null);
@@ -149,10 +182,8 @@ const AdminDashboard = () => {
     }
   };
 
-  // Screen 2: Early Issue Detection
+  // Early Issue Detection
   const fetchTrends = async () => {
-    setTrendsLoading(true);
-    setTrendsError(null);
     try {
       const [categoryRes, wardRes, frequentCategoriesRes, frequentWardsRes] = await Promise.all([
         API.get("/analytics/trend/category"),
@@ -168,12 +199,9 @@ const AdminDashboard = () => {
         setWardTrends(wardRes.data.trends || []);
       }
       if (frequentCategoriesRes.data.success) {
-        // Get top 10 frequently affected categories (already sorted by count descending)
         setFrequentlyAffectedCategories((frequentCategoriesRes.data.categories || []).slice(0, 10));
       }
       if (frequentWardsRes.data.success) {
-        // Get top 10 frequently affected wards (already sorted by totalComplaints descending)
-        // Backend returns: { _id: "<ward>", totalComplaints: <number> }
         const wards = (frequentWardsRes.data.wards || []).slice(0, 10).map(ward => ({
           _id: ward._id,
           count: ward.totalComplaints || 0
@@ -182,16 +210,11 @@ const AdminDashboard = () => {
       }
     } catch (error) {
       console.error("Failed to fetch trends:", error);
-      setTrendsError(error.response?.data?.message || "Failed to load trend data");
-    } finally {
-      setTrendsLoading(false);
     }
   };
 
-  // Screen 3: Predictive Analytics
+  // Predictive Analytics
   const fetchForecasts = async () => {
-    setForecastLoading(true);
-    setForecastError(null);
     try {
       const [categoryRes, wardRes] = await Promise.all([
         API.get("/analytics/forecast/category"),
@@ -206,9 +229,21 @@ const AdminDashboard = () => {
       }
     } catch (error) {
       console.error("Failed to fetch forecasts:", error);
-      setForecastError(error.response?.data?.message || "Failed to load forecast data");
+    }
+  };
+
+  // Governance: Fetch Alerts
+  const fetchAlerts = async () => {
+    setGovernanceLoading(true);
+    setGovernanceError(null);
+    try {
+      const alertsData = await getAllAlerts();
+      setAlerts(alertsData);
+    } catch (error) {
+      console.error("Failed to fetch alerts:", error);
+      setGovernanceError(error.message || "Failed to load alerts");
     } finally {
-      setForecastLoading(false);
+      setGovernanceLoading(false);
     }
   };
 
@@ -269,6 +304,17 @@ const AdminDashboard = () => {
     return num.toLocaleString("en-US");
   };
 
+  const getSeverityColor = (severity) => {
+    if (severity === "High" || severity === "Severe") return "#dc2626";
+    if (severity === "Medium" || severity === "Moderate") return "#f59e0b";
+    return "#64748b";
+  };
+
+  const formatSpikeRatio = (ratio) => {
+    if (ratio === null || ratio === undefined) return "0.00";
+    return Number(ratio).toFixed(2);
+  };
+
   const getTrendBadge = (trend) => {
     const trendLower = trend?.toLowerCase();
     if (trendLower === "increasing") return "badge-trend-increasing";
@@ -280,6 +326,79 @@ const AdminDashboard = () => {
     if (!str) return "";
     return str.charAt(0).toUpperCase() + str.slice(1);
   };
+
+  const formatAlertType = (alertType) => {
+    if (alertType === "HOTSPOT_ALERT") return "Hotspot Alert";
+    if (alertType === "SPIKE_ALERT") return "Spike Alert";
+    return alertType || "N/A";
+  };
+
+  const getStatusColor = (status) => {
+    if (status === "Open") return "#dc2626";
+    if (status === "Acknowledged") return "#f59e0b";
+    if (status === "Resolved") return "#10b981";
+    return "#64748b";
+  };
+
+  const handleHotspotSort = (field) => {
+    if (hotspotSortField === field) {
+      setHotspotSortOrder(hotspotSortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setHotspotSortField(field);
+      setHotspotSortOrder("desc");
+    }
+  };
+
+  const handleSpikeSort = (field) => {
+    if (spikeSortField === field) {
+      setSpikeSortOrder(spikeSortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSpikeSortField(field);
+      setSpikeSortOrder("desc");
+    }
+  };
+
+  const sortedHotspots = [...hotspots].sort((a, b) => {
+    let aValue = a[hotspotSortField];
+    let bValue = b[hotspotSortField];
+
+    if (hotspotSortField === "severity") {
+      const severityOrder = { High: 2, Medium: 1 };
+      aValue = severityOrder[aValue] || 0;
+      bValue = severityOrder[bValue] || 0;
+    } else if (typeof aValue === "string") {
+      aValue = aValue.toLowerCase();
+      bValue = bValue?.toLowerCase() || "";
+    }
+
+    if (hotspotSortOrder === "asc") {
+      return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+    } else {
+      return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+    }
+  });
+
+  const sortedSpikes = [...spikes].sort((a, b) => {
+    let aValue = a[spikeSortField];
+    let bValue = b[spikeSortField];
+
+    if (spikeSortField === "severity") {
+      const severityOrder = { Severe: 2, Moderate: 1 };
+      aValue = severityOrder[aValue] || 0;
+      bValue = severityOrder[bValue] || 0;
+    } else if (typeof aValue === "number") {
+      // Numeric comparison
+    } else if (typeof aValue === "string") {
+      aValue = aValue.toLowerCase();
+      bValue = bValue?.toLowerCase() || "";
+    }
+
+    if (spikeSortOrder === "asc") {
+      return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+    } else {
+      return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+    }
+  });
 
   // Get unique categories from complaints
   const categories = [...new Set(complaints.map((c) => c.category).filter(Boolean))].sort();
@@ -403,67 +522,66 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Tab Navigation */}
+        {/* Overview Section */}
+        <div className="overview-section">
+          <h2 className="overview-title">Overview</h2>
+          <div className="overview-stats-grid">
+            <div className="overview-stat-card">
+              <div className="overview-stat-value">{stats.total}</div>
+              <div className="overview-stat-label">Total Complaints</div>
+            </div>
+            <div className="overview-stat-card overview-stat-high">
+              <div className="overview-stat-value">{stats.high}</div>
+              <div className="overview-stat-label">High Priority</div>
+            </div>
+            <div className="overview-stat-card overview-stat-medium">
+              <div className="overview-stat-value">{stats.medium}</div>
+              <div className="overview-stat-label">Medium Priority</div>
+            </div>
+            <div className="overview-stat-card overview-stat-low">
+              <div className="overview-stat-value">{stats.low}</div>
+              <div className="overview-stat-label">Low Priority</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Primary Navigation */}
         <div className="admin-tabs">
           <button
             className={`admin-tab ${activeTab === "complaints" ? "active" : ""}`}
             onClick={() => setActiveTab("complaints")}
           >
-            Complaints Management
+            Complaints
+          </button>
+          <button
+            className={`admin-tab ${activeTab === "monitoring" ? "active" : ""}`}
+            onClick={() => setActiveTab("monitoring")}
+          >
+            Situation Monitoring
           </button>
           <button
             className={`admin-tab ${activeTab === "analytics" ? "active" : ""}`}
             onClick={() => setActiveTab("analytics")}
           >
-            Analytics Overview
+            Analytics
           </button>
           <button
-            className={`admin-tab ${activeTab === "trends" ? "active" : ""}`}
-            onClick={() => setActiveTab("trends")}
-          >
-            Early Issue Detection
-          </button>
-          <button
-            className={`admin-tab ${activeTab === "forecast" ? "active" : ""}`}
-            onClick={() => setActiveTab("forecast")}
+            className={`admin-tab ${activeTab === "predictive" ? "active" : ""}`}
+            onClick={() => setActiveTab("predictive")}
           >
             Predictive Analytics
           </button>
+          <button
+            className={`admin-tab ${activeTab === "governance" ? "active" : ""}`}
+            onClick={() => setActiveTab("governance")}
+          >
+            Governance
+          </button>
         </div>
 
-        {/* Complaints Management Tab */}
+        {/* Complaints Section */}
         {activeTab === "complaints" && (
           <>
-            <div className="admin-stats-grid">
-              <div className="admin-stat-card">
-                <div className="admin-stat-content">
-                  <div className="admin-stat-value">{stats.total}</div>
-                  <div className="admin-stat-label">Total Complaints</div>
-                </div>
-              </div>
-              <div className="admin-stat-card admin-stat-high">
-                <div className="admin-stat-content">
-                  <div className="admin-stat-value">{stats.high}</div>
-                  <div className="admin-stat-label">High Priority</div>
-                  <div className="admin-stat-sublabel">AI-detected</div>
-                </div>
-              </div>
-              <div className="admin-stat-card admin-stat-medium">
-                <div className="admin-stat-content">
-                  <div className="admin-stat-value">{stats.medium}</div>
-                  <div className="admin-stat-label">Medium Priority</div>
-                  <div className="admin-stat-sublabel">AI-detected</div>
-                </div>
-              </div>
-              <div className="admin-stat-card admin-stat-low">
-                <div className="admin-stat-content">
-                  <div className="admin-stat-value">{stats.low}</div>
-                  <div className="admin-stat-label">Low Priority</div>
-                  <div className="admin-stat-sublabel">AI-detected</div>
-                </div>
-              </div>
-            </div>
-
             {successMessage && (
               <div className="admin-success-message">
                 {successMessage}
@@ -473,7 +591,7 @@ const AdminDashboard = () => {
             <div className="admin-section">
               <div className="admin-section-header">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                  <h2 className="section-title" style={{ marginBottom: 0 }}>Complaints Management</h2>
+                  <h2 className="section-title" style={{ marginBottom: 0 }}>Complaints</h2>
                   <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
                     <div style={{ fontSize: "12px", color: "#64748b" }}>
                       Last updated: {lastRefreshTime.toLocaleTimeString()}
@@ -705,11 +823,168 @@ const AdminDashboard = () => {
           </>
         )}
 
-        {/* Screen 1: Analytics Overview */}
+        {/* Situation Monitoring Section */}
+        {activeTab === "monitoring" && (
+          <div className="admin-section monitoring-section">
+            <div className="admin-section-header">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <h2 className="section-title" style={{ marginBottom: 0 }}>Situation Monitoring</h2>
+                <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                  <div style={{ fontSize: "12px", color: "#64748b" }}>
+                    Last updated: {lastRefreshTime.toLocaleTimeString()}
+                  </div>
+                  <button onClick={handleRefresh} className="refresh-btn" title="Refresh Data">
+                    ↻ Refresh
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {monitoringLoading ? (
+              <div className="empty-state">
+                <div className="spinner"></div>
+                <p>Loading monitoring data...</p>
+              </div>
+            ) : monitoringError ? (
+              <div className="empty-state">
+                <h3>Error Loading Data</h3>
+                <p>{monitoringError}</p>
+              </div>
+            ) : (
+              <>
+                {/* A. Chronic Risk Areas (Hotspots) */}
+                <div className="monitoring-subsection">
+                  <h3 className="subsection-title">A. Chronic Risk Areas (Hotspots)</h3>
+                  <p className="monitoring-explanation">
+                    High-risk wards and categories based on complaint volume and priority.
+                  </p>
+                  {hotspots.length === 0 ? (
+                    <div className="empty-state" style={{ padding: "40px 24px", textAlign: "left" }}>
+                      <h3>No Hotspots Detected</h3>
+                      <p>No high-risk areas identified in the last 30 days.</p>
+                    </div>
+                  ) : (
+                    <div className="admin-table-container monitoring-table">
+                      <table className="admin-table">
+                        <thead>
+                          <tr>
+                            <th>Ward</th>
+                            <th>Category</th>
+                            <th
+                              className="sortable-header"
+                              onClick={() => handleHotspotSort("complaintCount")}
+                              style={{ cursor: "pointer" }}
+                            >
+                              Complaint Count {hotspotSortField === "complaintCount" && (hotspotSortOrder === "asc" ? "↑" : "↓")}
+                            </th>
+                            <th>Hotspot Score</th>
+                            <th
+                              className="sortable-header"
+                              onClick={() => handleHotspotSort("severity")}
+                              style={{ cursor: "pointer" }}
+                            >
+                              Severity {hotspotSortField === "severity" && (hotspotSortOrder === "asc" ? "↑" : "↓")}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedHotspots.map((hotspot, idx) => (
+                            <tr key={idx}>
+                              <td className="table-location">{hotspot.ward || "N/A"}</td>
+                              <td className="table-category">{hotspot.category || "N/A"}</td>
+                              <td>{hotspot.complaintCount || 0}</td>
+                              <td>{hotspot.hotspotScore || 0}</td>
+                              <td>
+                                <span style={{ color: getSeverityColor(hotspot.severity), fontWeight: 500 }}>
+                                  {hotspot.severity || "N/A"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Divider */}
+                <div className="monitoring-divider"></div>
+
+                {/* B. Recent Abnormal Changes (Spikes) */}
+                <div className="monitoring-subsection">
+                  <h3 className="subsection-title">B. Recent Abnormal Changes (Spikes)</h3>
+                  <p className="monitoring-explanation">
+                    Sudden increases in complaint volume compared to historical baseline.
+                  </p>
+                  {spikes.length === 0 ? (
+                    <div className="empty-state" style={{ padding: "40px 24px", textAlign: "left" }}>
+                      <h3>No Spikes Detected</h3>
+                      <p>No abnormal increases in complaint volume detected in the current week.</p>
+                    </div>
+                  ) : (
+                    <div className="admin-table-container monitoring-table">
+                      <table className="admin-table">
+                        <thead>
+                          <tr>
+                            <th>Ward</th>
+                            <th>Category</th>
+                            <th>Baseline Weekly Avg</th>
+                            <th>Current Week Count</th>
+                            <th
+                              className="sortable-header"
+                              onClick={() => handleSpikeSort("spikeRatio")}
+                              style={{ cursor: "pointer" }}
+                            >
+                              Spike Ratio {spikeSortField === "spikeRatio" && (spikeSortOrder === "asc" ? "↑" : "↓")}
+                            </th>
+                            <th>Severity</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedSpikes.map((spike, idx) => (
+                            <tr key={idx}>
+                              <td className="table-location">{spike.ward || "N/A"}</td>
+                              <td className="table-category">{spike.category || "N/A"}</td>
+                              <td>{spike.baselineWeeklyAvg?.toFixed(1) || "0.0"}</td>
+                              <td>{spike.currentWeekCount || 0}</td>
+                              <td>{formatSpikeRatio(spike.spikeRatio)}</td>
+                              <td>
+                                <span style={{ color: getSeverityColor(spike.severity), fontWeight: 500 }}>
+                                  {spike.severity || "N/A"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Analytics Section */}
         {activeTab === "analytics" && (
           <div className="admin-section">
             <div className="admin-section-header">
-              <h2 className="section-title">Analytics Overview - Historical Data Analysis</h2>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <div>
+                  <h2 className="section-title" style={{ marginBottom: 0 }}>Analytics</h2>
+                  <p style={{ fontSize: "14px", color: "#64748b", marginTop: "8px" }}>
+                    Historical data analysis and distribution patterns.
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                  <div style={{ fontSize: "12px", color: "#64748b" }}>
+                    Last updated: {lastRefreshTime.toLocaleTimeString()}
+                  </div>
+                  <button onClick={handleRefresh} className="refresh-btn" title="Refresh Data">
+                    ↻ Refresh
+                  </button>
+                </div>
+              </div>
             </div>
 
             {analyticsLoading ? (
@@ -724,65 +999,68 @@ const AdminDashboard = () => {
               </div>
             ) : (
               <>
-                {/* Summary Metrics */}
-                {analyticsSummary && (
-                  <div className="analytics-summary-section">
-                    <h3 className="subsection-title">Overall Summary</h3>
-                    <div className="admin-stats-grid">
-                      <div className="admin-stat-card">
-                        <div className="admin-stat-content">
-                          <div className="admin-stat-value">{formatNumber(analyticsSummary.totalComplaints || 0)}</div>
-                          <div className="admin-stat-label">Total Complaints</div>
-                        </div>
-                      </div>
-                      {analyticsSummary.statusBreakdown?.map((status) => (
-                        <div key={status._id} className="admin-stat-card">
+                {/* Analytics Overview */}
+                <div className="monitoring-subsection">
+                  <h3 className="subsection-title">Analytics Overview</h3>
+                  
+                  {/* Summary Metrics */}
+                  {analyticsSummary && (
+                    <div style={{ marginBottom: "32px" }}>
+                      <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                        Overall Summary
+                      </h4>
+                      <div className="admin-stats-grid">
+                        <div className="admin-stat-card">
                           <div className="admin-stat-content">
-                            <div className="admin-stat-value">{formatNumber(status.count || 0)}</div>
-                            <div className="admin-stat-label">{status._id || "Unknown"}</div>
+                            <div className="admin-stat-value">{formatNumber(analyticsSummary.totalComplaints || 0)}</div>
+                            <div className="admin-stat-label">Total Complaints</div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                    
-                    {/* Status Breakdown Chart */}
-                    {analyticsSummary.statusBreakdown && analyticsSummary.statusBreakdown.length > 0 && (
-                      <div className="chart-container">
-                        <h4 className="chart-title">Status Distribution</h4>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <PieChart>
-                            <Pie
-                              data={analyticsSummary.statusBreakdown.map(s => ({ name: s._id || "Unknown", value: s.count || 0 }))}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                              outerRadius={100}
-                              fill="#8884d8"
-                              dataKey="value"
-                            >
-                              {analyticsSummary.statusBreakdown.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={["#1e40af", "#f59e0b", "#10b981", "#64748b"][index % 4]} />
-                              ))}
-                            </Pie>
-                            <Tooltip />
-                            <Legend />
-                          </PieChart>
-                        </ResponsiveContainer>
+                        {analyticsSummary.statusBreakdown?.map((status) => (
+                          <div key={status._id} className="admin-stat-card">
+                            <div className="admin-stat-content">
+                              <div className="admin-stat-value">{formatNumber(status.count || 0)}</div>
+                              <div className="admin-stat-label">{status._id || "Unknown"}</div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Category Distribution */}
-                <div className="analytics-table-section">
-                  <h3 className="subsection-title">Category Distribution</h3>
-                  {categoryDistribution.length === 0 ? (
-                    <div className="empty-state">
-                      <p>No category data available</p>
+                      
+                      {/* Status Breakdown Chart */}
+                      {analyticsSummary.statusBreakdown && analyticsSummary.statusBreakdown.length > 0 && (
+                        <div className="chart-container">
+                          <h4 className="chart-title">Status Distribution</h4>
+                          <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                              <Pie
+                                data={analyticsSummary.statusBreakdown.map(s => ({ name: s._id || "Unknown", value: s.count || 0 }))}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                outerRadius={100}
+                                fill="#8884d8"
+                                dataKey="value"
+                              >
+                                {analyticsSummary.statusBreakdown.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={["#1e40af", "#f59e0b", "#10b981", "#64748b"][index % 4]} />
+                                ))}
+                              </Pie>
+                              <Tooltip />
+                              <Legend />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <>
+                  )}
+
+                  {/* Category Distribution */}
+                  {categoryDistribution.length > 0 && (
+                    <div style={{ marginBottom: "32px" }}>
+                      <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                        Category Distribution
+                      </h4>
                       <div className="chart-container">
                         <ResponsiveContainer width="100%" height={350}>
                           <BarChart
@@ -822,19 +1100,15 @@ const AdminDashboard = () => {
                           </tbody>
                         </table>
                       </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Priority Distribution */}
-                <div className="analytics-table-section">
-                  <h3 className="subsection-title">Priority Distribution</h3>
-                  {priorityDistribution.length === 0 ? (
-                    <div className="empty-state">
-                      <p>No priority data available</p>
                     </div>
-                  ) : (
-                    <>
+                  )}
+
+                  {/* Priority Distribution */}
+                  {priorityDistribution.length > 0 && (
+                    <div>
+                      <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                        Priority Distribution
+                      </h4>
                       <div className="chart-container">
                         <ResponsiveContainer width="100%" height={300}>
                           <BarChart
@@ -880,112 +1154,106 @@ const AdminDashboard = () => {
                           </tbody>
                         </table>
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
-              </>
-            )}
-          </div>
-        )}
 
-        {/* Screen 2: Early Issue Detection */}
-        {activeTab === "trends" && (
-          <div className="admin-section">
-            <div className="admin-section-header">
-              <h2 className="section-title">Early Detection of Emerging Municipal Issues</h2>
-            </div>
+                {/* Divider */}
+                <div className="monitoring-divider"></div>
 
-            {trendsLoading ? (
-              <div className="empty-state">
-                <div className="spinner"></div>
-                <p>Loading trend data...</p>
-              </div>
-            ) : trendsError ? (
-              <div className="empty-state">
-                <h3>Error Loading Data</h3>
-                <p>{trendsError}</p>
-              </div>
-            ) : (
-              <>
-                {/* Frequently Affected Areas */}
-                <div className="analytics-table-section">
-                  <h3 className="subsection-title">Frequently Affected Areas</h3>
+                {/* Early Issue Detection */}
+                <div className="monitoring-subsection">
+                  <h3 className="subsection-title">Early Issue Detection</h3>
+                  <p className="monitoring-explanation">
+                    Trend analysis to identify emerging municipal issues.
+                  </p>
                   
-                  <div className="frequently-affected-grid">
-                    {/* Frequently Affected Categories */}
-                    <div>
-                      <h4 style={{ fontSize: "14px", fontWeight: 600, color: "#475569", marginBottom: "12px" }}>
-                        Top Frequently Affected Categories
-                      </h4>
-                      {frequentlyAffectedCategories.length === 0 ? (
-                        <div className="empty-state" style={{ padding: "20px" }}>
-                          <p style={{ fontSize: "13px" }}>No category data available</p>
-                        </div>
-                      ) : (
-                        <div className="admin-table-container">
-                          <table className="admin-table">
-                            <thead>
-                              <tr>
-                                <th>Category</th>
-                                <th>Total Complaints</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {frequentlyAffectedCategories.map((item, idx) => (
-                                <tr key={idx}>
-                                  <td className="table-category">{item._id || "Unknown"}</td>
-                                  <td><strong>{formatNumber(item.count || 0)}</strong></td>
+                  {/* Frequently Affected Areas */}
+                  <div style={{ marginBottom: "32px" }}>
+                    <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                      Frequently Affected Areas
+                    </h4>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+                      {/* Frequently Affected Categories */}
+                      <div>
+                        <h5 style={{ fontSize: "14px", fontWeight: 600, color: "#475569", marginBottom: "12px" }}>
+                          Top Frequently Affected Categories
+                        </h5>
+                        {frequentlyAffectedCategories.length === 0 ? (
+                          <div className="empty-state" style={{ padding: "20px", textAlign: "left" }}>
+                            <p style={{ fontSize: "13px" }}>No category data available</p>
+                          </div>
+                        ) : (
+                          <div className="admin-table-container">
+                            <table className="admin-table">
+                              <thead>
+                                <tr>
+                                  <th>Category</th>
+                                  <th>Total Complaints</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
+                              </thead>
+                              <tbody>
+                                {frequentlyAffectedCategories.map((item, idx) => (
+                                  <tr key={idx}>
+                                    <td className="table-category">{item._id || "Unknown"}</td>
+                                    <td><strong>{formatNumber(item.count || 0)}</strong></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
 
-                    {/* Frequently Affected Wards */}
-                    <div>
-                      <h4 style={{ fontSize: "14px", fontWeight: 600, color: "#475569", marginBottom: "12px" }}>
-                        Top Frequently Affected Wards
-                      </h4>
-                      {frequentlyAffectedWards.length === 0 ? (
-                        <div className="empty-state" style={{ padding: "20px" }}>
-                          <p style={{ fontSize: "13px" }}>No ward data available</p>
-                        </div>
-                      ) : (
-                        <div className="admin-table-container">
-                          <table className="admin-table">
-                            <thead>
-                              <tr>
-                                <th>Ward</th>
-                                <th>Total Complaints</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {frequentlyAffectedWards.map((item, idx) => (
-                                <tr key={idx}>
-                                  <td className="table-location">{item._id || item.ward || "Unknown"}</td>
-                                  <td><strong>{formatNumber(item.count || 0)}</strong></td>
+                      {/* Frequently Affected Wards */}
+                      <div>
+                        <h5 style={{ fontSize: "14px", fontWeight: 600, color: "#475569", marginBottom: "12px" }}>
+                          Top Frequently Affected Wards
+                        </h5>
+                        {frequentlyAffectedWards.length === 0 ? (
+                          <div className="empty-state" style={{ padding: "20px", textAlign: "left" }}>
+                            <p style={{ fontSize: "13px" }}>No ward data available</p>
+                          </div>
+                        ) : (
+                          <div className="admin-table-container">
+                            <table className="admin-table">
+                              <thead>
+                                <tr>
+                                  <th>Ward</th>
+                                  <th>Total Complaints</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                              </thead>
+                              <tbody>
+                                {frequentlyAffectedWards.map((item, idx) => (
+                                  <tr key={idx}>
+                                    <td className="table-location">{item._id || item.ward || "Unknown"}</td>
+                                    <td><strong>{formatNumber(item.count || 0)}</strong></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Category Trend Direction */}
-                <div className="analytics-table-section">
-                  <h3 className="subsection-title">Category Trend Direction</h3>
+                  {/* Category Trend Direction */}
                   {categoryTrends.length === 0 ? (
-                    <div className="empty-state">
-                      <h3>Insufficient Historical Data</h3>
-                      <p>Insufficient historical data for trend analysis. At least 2 months of data required.</p>
+                    <div style={{ marginBottom: "32px" }}>
+                      <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                        Category Trend Direction
+                      </h4>
+                      <div className="empty-state" style={{ padding: "40px 24px", textAlign: "left" }}>
+                        <h3>Insufficient Historical Data</h3>
+                        <p>Insufficient historical data for trend analysis. At least 2 months of data required.</p>
+                      </div>
                     </div>
                   ) : (
-                    <>
+                    <div style={{ marginBottom: "32px" }}>
+                      <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                        Category Trend Direction
+                      </h4>
                       <div className="chart-container">
                         <ResponsiveContainer width="100%" height={400}>
                           <BarChart
@@ -1038,20 +1306,25 @@ const AdminDashboard = () => {
                           </tbody>
                         </table>
                       </div>
-                    </>
+                    </div>
                   )}
-                </div>
 
-                {/* Ward Trend Direction */}
-                <div className="analytics-table-section">
-                  <h3 className="subsection-title">Ward Trend Direction</h3>
+                  {/* Ward Trend Direction */}
                   {wardTrends.length === 0 ? (
-                    <div className="empty-state">
-                      <h3>Insufficient Historical Data</h3>
-                      <p>Insufficient historical data for trend analysis. At least 2 months of data required.</p>
+                    <div>
+                      <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                        Ward Trend Direction
+                      </h4>
+                      <div className="empty-state" style={{ padding: "40px 24px", textAlign: "left" }}>
+                        <h3>Insufficient Historical Data</h3>
+                        <p>Insufficient historical data for trend analysis. At least 2 months of data required.</p>
+                      </div>
                     </div>
                   ) : (
-                    <>
+                    <div>
+                      <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                        Ward Trend Direction
+                      </h4>
                       <div className="chart-container">
                         <ResponsiveContainer width="100%" height={400}>
                           <BarChart
@@ -1104,7 +1377,7 @@ const AdminDashboard = () => {
                           </tbody>
                         </table>
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
               </>
@@ -1112,148 +1385,361 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Screen 3: Predictive Analytics */}
-        {activeTab === "forecast" && (
+        {/* Predictive Analytics Section */}
+        {activeTab === "predictive" && (
           <div className="admin-section">
             <div className="admin-section-header">
-              <h2 className="section-title">AI-Assisted Short-Term Forecasting for Planning</h2>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <div>
+                  <h2 className="section-title" style={{ marginBottom: 0 }}>Predictive Analytics</h2>
+                  <p style={{ fontSize: "14px", color: "#64748b", marginTop: "8px" }}>
+                    AI-assisted short-term forecasting for planning purposes.
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                  <div style={{ fontSize: "12px", color: "#64748b" }}>
+                    Last updated: {lastRefreshTime.toLocaleTimeString()}
+                  </div>
+                  <button onClick={handleRefresh} className="refresh-btn" title="Refresh Data">
+                    ↻ Refresh
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {forecastLoading ? (
+            <div className="monitoring-subsection">
+              {/* Category Forecast */}
+              {categoryForecasts.length === 0 ? (
+                <div style={{ marginBottom: "32px" }}>
+                  <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                    Category Forecast - 1-Month Ahead
+                  </h4>
+                  <div className="empty-state" style={{ padding: "40px 24px", textAlign: "left" }}>
+                    <h3>Insufficient Historical Data</h3>
+                    <p>Insufficient historical data for forecasting. At least 2 months of data required.</p>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ marginBottom: "32px" }}>
+                  <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                    Category Forecast - 1-Month Ahead
+                  </h4>
+                  <div className="chart-container">
+                    <ResponsiveContainer width="100%" height={400}>
+                      <BarChart
+                        data={categoryForecasts.map(forecast => ({
+                          name: forecast.category || "Unknown",
+                          lastMonth: forecast.lastMonthCount || 0,
+                          predicted: forecast.predictedNextMonth || 0
+                        }))}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis
+                          dataKey="name"
+                          angle={-45}
+                          textAnchor="end"
+                          height={100}
+                          tick={{ fontSize: 12 }}
+                        />
+                        <YAxis tick={{ fontSize: 12 }} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="lastMonth" fill="#94a3b8" name="Last Month" />
+                        <Bar dataKey="predicted" fill="#10b981" name="Predicted Next Month" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="admin-table-container" style={{ marginTop: "24px" }}>
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Category</th>
+                          <th>Last Month Count</th>
+                          <th>Predicted Next Month</th>
+                          <th>Forecast Method</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {categoryForecasts.map((forecast, idx) => (
+                          <tr key={idx}>
+                            <td className="table-category">{forecast.category || "Unknown"}</td>
+                            <td>{formatNumber(forecast.lastMonthCount || 0)}</td>
+                            <td><strong>{formatNumber(forecast.predictedNextMonth || 0)}</strong></td>
+                            <td>{forecast.method || "Linear Trend Projection"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Divider */}
+              <div className="monitoring-divider"></div>
+
+              {/* Ward Forecast */}
+              {wardForecasts.length === 0 ? (
+                <div>
+                  <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                    Ward Forecast - 1-Month Ahead
+                  </h4>
+                  <div className="empty-state" style={{ padding: "40px 24px", textAlign: "left" }}>
+                    <h3>Insufficient Historical Data</h3>
+                    <p>Insufficient historical data for forecasting. At least 2 months of data required.</p>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                    Ward Forecast - 1-Month Ahead
+                  </h4>
+                  <div className="chart-container">
+                    <ResponsiveContainer width="100%" height={400}>
+                      <BarChart
+                        data={wardForecasts.map(forecast => ({
+                          name: forecast.ward || "Unknown",
+                          lastMonth: forecast.lastMonthCount || 0,
+                          predicted: forecast.predictedNextMonth || 0
+                        }))}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis
+                          dataKey="name"
+                          angle={-45}
+                          textAnchor="end"
+                          height={100}
+                          tick={{ fontSize: 12 }}
+                        />
+                        <YAxis tick={{ fontSize: 12 }} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="lastMonth" fill="#94a3b8" name="Last Month" />
+                        <Bar dataKey="predicted" fill="#10b981" name="Predicted Next Month" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="admin-table-container" style={{ marginTop: "24px" }}>
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Ward</th>
+                          <th>Last Month Count</th>
+                          <th>Predicted Next Month</th>
+                          <th>Forecast Method</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {wardForecasts.map((forecast, idx) => (
+                          <tr key={idx}>
+                            <td className="table-location">{forecast.ward || "Unknown"}</td>
+                            <td>{formatNumber(forecast.lastMonthCount || 0)}</td>
+                            <td><strong>{formatNumber(forecast.predictedNextMonth || 0)}</strong></td>
+                            <td>{forecast.method || "Linear Trend Projection"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Governance Section */}
+        {activeTab === "governance" && (
+          <div className="admin-section">
+            <div className="admin-section-header">
+              <h2 className="section-title">Governance Alerts</h2>
+            </div>
+
+            {governanceLoading ? (
               <div className="empty-state">
                 <div className="spinner"></div>
-                <p>Loading forecast data...</p>
+                <p>Loading alerts...</p>
               </div>
-            ) : forecastError ? (
+            ) : governanceError ? (
               <div className="empty-state">
                 <h3>Error Loading Data</h3>
-                <p>{forecastError}</p>
+                <p>{governanceError}</p>
               </div>
             ) : (
               <>
-                {/* Category Forecast */}
-                <div className="analytics-table-section">
-                  <h3 className="subsection-title">Category Forecast - 1-Month Ahead</h3>
-                  {categoryForecasts.length === 0 ? (
-                    <div className="empty-state">
-                      <h3>Insufficient Historical Data</h3>
-                      <p>Insufficient historical data for forecasting. At least 2 months of data required.</p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="chart-container">
-                        <ResponsiveContainer width="100%" height={400}>
-                          <BarChart
-                            data={categoryForecasts.map(forecast => ({
-                              name: forecast.category || "Unknown",
-                              lastMonth: forecast.lastMonthCount || 0,
-                              predicted: forecast.predictedNextMonth || 0
-                            }))}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                            <XAxis
-                              dataKey="name"
-                              angle={-45}
-                              textAnchor="end"
-                              height={100}
-                              tick={{ fontSize: 12 }}
-                            />
-                            <YAxis tick={{ fontSize: 12 }} />
-                            <Tooltip />
-                            <Legend />
-                            <Bar dataKey="lastMonth" fill="#94a3b8" name="Last Month" />
-                            <Bar dataKey="predicted" fill="#10b981" name="Predicted Next Month" />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="admin-table-container" style={{ marginTop: "24px" }}>
-                        <table className="admin-table">
-                          <thead>
-                            <tr>
-                              <th>Category</th>
-                              <th>Last Month Count</th>
-                              <th>Predicted Next Month</th>
-                              <th>Forecast Method</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {categoryForecasts.map((forecast, idx) => (
-                              <tr key={idx}>
-                                <td className="table-category">{forecast.category || "Unknown"}</td>
-                                <td>{formatNumber(forecast.lastMonthCount || 0)}</td>
-                                <td><strong>{formatNumber(forecast.predictedNextMonth || 0)}</strong></td>
-                                <td>{forecast.method || "Linear Trend Projection"}</td>
+                {alerts.length === 0 ? (
+                  <div className="empty-state">
+                    <h3>No Alerts</h3>
+                    <p>No governance alerts have been generated.</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Open Alerts */}
+                    {alerts.filter((a) => a.status === "Open").length > 0 && (
+                      <div style={{ marginBottom: "40px" }}>
+                        <h3 className="subsection-title" style={{ color: "#dc2626", marginBottom: "16px" }}>
+                          Open Alerts ({alerts.filter((a) => a.status === "Open").length})
+                        </h3>
+                        <div className="admin-table-container">
+                          <table className="admin-table">
+                            <thead>
+                              <tr>
+                                <th>Alert Type</th>
+                                <th>Ward</th>
+                                <th>Category</th>
+                                <th>Severity</th>
+                                <th>Status</th>
+                                <th>Created Date</th>
+                                <th>Action</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {alerts
+                                .filter((a) => a.status === "Open")
+                                .map((alert) => (
+                                  <tr key={alert._id}>
+                                    <td>{formatAlertType(alert.alertType)}</td>
+                                    <td className="table-location">{alert.ward || "N/A"}</td>
+                                    <td className="table-category">{alert.category || "N/A"}</td>
+                                    <td>
+                                      <span style={{ color: getSeverityColor(alert.severity), fontWeight: 500 }}>
+                                        {alert.severity || "N/A"}
+                                      </span>
+                                    </td>
+                                    <td>
+                                      <span style={{ color: getStatusColor(alert.status), fontWeight: 500 }}>
+                                        {alert.status || "N/A"}
+                                      </span>
+                                    </td>
+                                    <td className="table-date">{formatDate(alert.createdAt)}</td>
+                                    <td>
+                                      <button
+                                        onClick={() => navigate(`/admin/alerts/${alert._id}`)}
+                                        className="refresh-btn"
+                                        style={{ fontSize: "13px", padding: "6px 12px" }}
+                                      >
+                                        View Details
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    </>
-                  )}
-                </div>
+                    )}
 
-                {/* Ward Forecast */}
-                <div className="analytics-table-section">
-                  <h3 className="subsection-title">Ward Forecast - 1-Month Ahead</h3>
-                  {wardForecasts.length === 0 ? (
-                    <div className="empty-state">
-                      <h3>Insufficient Historical Data</h3>
-                      <p>Insufficient historical data for forecasting. At least 2 months of data required.</p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="chart-container">
-                        <ResponsiveContainer width="100%" height={400}>
-                          <BarChart
-                            data={wardForecasts.map(forecast => ({
-                              name: forecast.ward || "Unknown",
-                              lastMonth: forecast.lastMonthCount || 0,
-                              predicted: forecast.predictedNextMonth || 0
-                            }))}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                            <XAxis
-                              dataKey="name"
-                              angle={-45}
-                              textAnchor="end"
-                              height={100}
-                              tick={{ fontSize: 12 }}
-                            />
-                            <YAxis tick={{ fontSize: 12 }} />
-                            <Tooltip />
-                            <Legend />
-                            <Bar dataKey="lastMonth" fill="#94a3b8" name="Last Month" />
-                            <Bar dataKey="predicted" fill="#10b981" name="Predicted Next Month" />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="admin-table-container" style={{ marginTop: "24px" }}>
-                        <table className="admin-table">
-                          <thead>
-                            <tr>
-                              <th>Ward</th>
-                              <th>Last Month Count</th>
-                              <th>Predicted Next Month</th>
-                              <th>Forecast Method</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {wardForecasts.map((forecast, idx) => (
-                              <tr key={idx}>
-                                <td className="table-location">{forecast.ward || "Unknown"}</td>
-                                <td>{formatNumber(forecast.lastMonthCount || 0)}</td>
-                                <td><strong>{formatNumber(forecast.predictedNextMonth || 0)}</strong></td>
-                                <td>{forecast.method || "Linear Trend Projection"}</td>
+                    {/* Acknowledged Alerts */}
+                    {alerts.filter((a) => a.status === "Acknowledged").length > 0 && (
+                      <div style={{ marginBottom: "40px" }}>
+                        <h3 className="subsection-title" style={{ color: "#f59e0b", marginBottom: "16px" }}>
+                          Acknowledged Alerts ({alerts.filter((a) => a.status === "Acknowledged").length})
+                        </h3>
+                        <div className="admin-table-container">
+                          <table className="admin-table">
+                            <thead>
+                              <tr>
+                                <th>Alert Type</th>
+                                <th>Ward</th>
+                                <th>Category</th>
+                                <th>Severity</th>
+                                <th>Status</th>
+                                <th>Created Date</th>
+                                <th>Action</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {alerts
+                                .filter((a) => a.status === "Acknowledged")
+                                .map((alert) => (
+                                  <tr key={alert._id}>
+                                    <td>{formatAlertType(alert.alertType)}</td>
+                                    <td className="table-location">{alert.ward || "N/A"}</td>
+                                    <td className="table-category">{alert.category || "N/A"}</td>
+                                    <td>
+                                      <span style={{ color: getSeverityColor(alert.severity), fontWeight: 500 }}>
+                                        {alert.severity || "N/A"}
+                                      </span>
+                                    </td>
+                                    <td>
+                                      <span style={{ color: getStatusColor(alert.status), fontWeight: 500 }}>
+                                        {alert.status || "N/A"}
+                                      </span>
+                                    </td>
+                                    <td className="table-date">{formatDate(alert.createdAt)}</td>
+                                    <td>
+                                      <button
+                                        onClick={() => navigate(`/admin/alerts/${alert._id}`)}
+                                        className="refresh-btn"
+                                        style={{ fontSize: "13px", padding: "6px 12px" }}
+                                      >
+                                        View Details
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    </>
-                  )}
-                </div>
+                    )}
+
+                    {/* Resolved Alerts */}
+                    {alerts.filter((a) => a.status === "Resolved").length > 0 && (
+                      <div style={{ marginBottom: "40px" }}>
+                        <h3 className="subsection-title" style={{ color: "#10b981", marginBottom: "16px" }}>
+                          Resolved Alerts ({alerts.filter((a) => a.status === "Resolved").length})
+                        </h3>
+                        <div className="admin-table-container">
+                          <table className="admin-table">
+                            <thead>
+                              <tr>
+                                <th>Alert Type</th>
+                                <th>Ward</th>
+                                <th>Category</th>
+                                <th>Severity</th>
+                                <th>Status</th>
+                                <th>Created Date</th>
+                                <th>Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {alerts
+                                .filter((a) => a.status === "Resolved")
+                                .map((alert) => (
+                                  <tr key={alert._id}>
+                                    <td>{formatAlertType(alert.alertType)}</td>
+                                    <td className="table-location">{alert.ward || "N/A"}</td>
+                                    <td className="table-category">{alert.category || "N/A"}</td>
+                                    <td>
+                                      <span style={{ color: getSeverityColor(alert.severity), fontWeight: 500 }}>
+                                        {alert.severity || "N/A"}
+                                      </span>
+                                    </td>
+                                    <td>
+                                      <span style={{ color: getStatusColor(alert.status), fontWeight: 500 }}>
+                                        {alert.status || "N/A"}
+                                      </span>
+                                    </td>
+                                    <td className="table-date">{formatDate(alert.createdAt)}</td>
+                                    <td>
+                                      <button
+                                        onClick={() => navigate(`/admin/alerts/${alert._id}`)}
+                                        className="refresh-btn"
+                                        style={{ fontSize: "13px", padding: "6px 12px" }}
+                                      >
+                                        View Details
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </>
             )}
           </div>

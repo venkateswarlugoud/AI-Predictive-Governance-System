@@ -7,6 +7,10 @@ import CreateComplaint from "./pages/CreateComplaint";
 import MyComplaints from "./pages/MyComplaints";
 import AdminDashboard from "./pages/AdminDashboard";
 import ProfilePage from "./pages/ProfilePage";
+import HotspotsView from "./pages/HotspotsView";
+import SpikesView from "./pages/SpikesView";
+import AlertsListView from "./pages/AlertsListView";
+import AlertDetailView from "./pages/AlertDetailView";
 import Navbar from "./components/Navbar";
 import PrivateRoute from "./components/PrivateRoute";
 import AdminRoute from "./components/AdminRoute";
@@ -56,6 +60,38 @@ function App() {
           element={
             <AdminRoute>
               <AdminDashboard />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/hotspots"
+          element={
+            <AdminRoute>
+              <HotspotsView />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/spikes"
+          element={
+            <AdminRoute>
+              <SpikesView />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/alerts"
+          element={
+            <AdminRoute>
+              <AlertsListView />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/alerts/:id"
+          element={
+            <AdminRoute>
+              <AlertDetailView />
             </AdminRoute>
           }
         />
