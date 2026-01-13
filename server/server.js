@@ -9,6 +9,9 @@ import { connectDB } from "./config/db.js";
 import userRouter from "./routes/userRoutes.js";
 import complaintRouter from "./routes/complaintRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
+import hotspotRoutes from "./routes/hotspotRoutes.js";
+import spikeRoutes from "./routes/spikeRoutes.js";
+import alertRoutes from "./routes/alertRoutes.js";
 
 console.log("🚀 SERVER.JS FILE LOADED");
 
@@ -33,6 +36,9 @@ app.use((req, res, next) => {
 app.use("/api/auth", userRouter);
 app.use("/api/complaint", complaintRouter);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/hotspots", hotspotRoutes);
+app.use("/api/spikes", spikeRoutes);
+app.use("/api/alerts", alertRoutes);
 
 
 
