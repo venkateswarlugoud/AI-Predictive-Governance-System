@@ -1,255 +1,378 @@
-AI-Based Municipal Grievance Management System
+/*
+===============================================================================
+ AI-DRIVEN PREDICTIVE MUNICIPAL GOVERNANCE SYSTEM
+===============================================================================
 
-This project is a B.Tech CSE final year project focused on developing an AI-ready municipal grievance management system. The system enables citizens to submit complaints related to municipal services and allows municipal authorities to monitor, manage, and resolve these complaints efficiently.
+A government-grade, AI-assisted decision support system for
+municipal grievance management, analytics, and preventive governance.
 
-The application is developed using a full-stack architecture with a React frontend and a Node.js backend. It includes secure authentication, role-based access control, and a structured grievance workflow. The system is designed to support future AI-based prediction and analysis.
+This README is the COMPLETE and FINAL documentation.
+===============================================================================
+*/
 
-------------------------------------------------------------
+/*
+===============================================================================
+ 1. PROJECT INTRODUCTION
+===============================================================================
 
-Project Overview
+Municipal grievance systems in many cities are reactive and manual.
+Complaints are handled only after escalation, with limited intelligence
+for early warning, trend analysis, or accountability.
 
-Municipal corporations face challenges in managing large volumes of public complaints related to roads, garbage collection, water supply, sanitation, drainage, and street lighting. Existing systems are mostly reactive, time-consuming, and lack intelligent analysis.
+This project implements an AI-assisted municipal governance system
+that enables authorities to:
 
-This project provides a digital platform where:
+- Automatically categorize and prioritize complaints
+- Monitor trends across wards and categories
+- Detect chronic risk areas (hotspots)
+- Detect sudden abnormal increases (spikes)
+- Generate formal governance alerts
+- Track administrative acknowledgment and resolution
 
-1. Citizens can submit municipal complaints online
-2. Citizens can track the status of their complaints
-3. Municipal administrators can view and manage all complaints
-4. Complaint data can be analyzed later for predictive governance
+This system is designed as a DECISION-SUPPORT tool,
+not an autonomous decision-maker.
 
-------------------------------------------------------------
+Explainability, auditability, and governance safety are core principles.
+===============================================================================
+*/
 
-Key Features
+/*
+===============================================================================
+ 2. PROBLEM STATEMENT
+===============================================================================
 
-Citizen Features
+Traditional municipal complaint systems suffer from:
 
-1. Secure registration and login
-2. Submit municipal complaints
-3. View status of submitted complaints
+- Manual complaint categorization
+- Subjective prioritization
+- No historical trend analysis
+- No early warning for abnormal spikes
+- No formal accountability workflow
 
-Municipal Admin Features
+This leads to:
+- Repeated civic issues
+- Poor resource allocation
+- Delayed response
+- Reactive governance
 
-1. View all complaints
-2. Update complaint status
-3. Monitor grievance resolution
+The absence of intelligence-driven planning prevents preventive action.
+===============================================================================
+*/
 
-System Features
+/*
+===============================================================================
+ 3. PROJECT OBJECTIVES
+===============================================================================
 
-1. JWT-based authentication
-2. Role-based access control
-3. RESTful API architecture
-4. MongoDB Atlas cloud database
-5. Scalable design for AI integration
+1. Automatically classify complaints using AI
+2. Automatically assign priority using AI + rules
+3. Store structured historical complaint data
+4. Analyze trends by category, ward, priority, and time
+5. Identify high-risk wards early (hotspots)
+6. Detect abnormal increases in complaints (spikes)
+7. Generate formal governance alerts
+8. Track acknowledgment and resolution by authorities
+9. Maintain explainable and auditable intelligence
 
-------------------------------------------------------------
+===============================================================================
+*/
 
-Technology Stack
+/*
+===============================================================================
+ 4. SYSTEM SCOPE & PHILOSOPHY
+===============================================================================
 
-Frontend Technologies
+- This system SUPPORTS decisions; it does NOT replace authorities
+- AI outputs are advisory, not binding
+- Rule-based refinement ensures transparency
+- All decisions are traceable and auditable
 
-1. React (Vite)
-2. Axios
-3. Custom CSS
+Target usage:
+- Smart city pilots
+- Academic evaluation
+- Demonstration of AI in public administration
 
-Backend Technologies
+Stability and explainability are prioritized over novelty.
+===============================================================================
+*/
 
-1. Node.js
-2. Express.js
-3. MongoDB Atlas
-4. JWT Authentication
+/*
+===============================================================================
+ 5. SYSTEM ARCHITECTURE (HIGH LEVEL)
+===============================================================================
 
-Tools and Platforms
+Frontend (React + Vite)
+        |
+        | REST APIs (JWT Authentication)
+        |
+Backend (Node.js + Express)
+        |
+        | HTTP
+        |
+AI Service (Python FastAPI)
+        |
+        |
+MongoDB
 
-1. Git and GitHub
-2. Postman
-3. MongoDB Atlas
-4. Cloudinary (optional for image uploads)
+Ports:
+- Frontend : 5173
+- Backend  : 5000
+- AI       : 8000
+===============================================================================
+*/
 
-------------------------------------------------------------
+/*
+===============================================================================
+ 6. TECHNOLOGY STACK
+===============================================================================
 
-Project Structure
+Frontend:
+- React.js
+- Vite
+- Axios
+- Chart.js / Recharts
 
-AI-Predictive-Governance-System
-client   -> Frontend (React + Vite)
-server   -> Backend (Node.js + Express)
+Backend:
+- Node.js
+- Express.js
+- JWT Authentication
+- Role-based Authorization
 
-------------------------------------------------------------
+Database:
+- MongoDB
+- Mongoose ODM
 
-Setup Instructions
+AI / ML:
+- Python
+- FastAPI
+- TF-IDF Vectorization
+- Naive Bayes Classification
+- Rule-based refinement layer
 
-Prerequisites
+===============================================================================
+*/
 
-1. Node.js version 18 or above
-2. npm
-3. Git
-4. MongoDB Atlas account
-5. Internet connection
+/*
+===============================================================================
+ 7. CORE FEATURES (PHASE-1 IMPLEMENTED)
+===============================================================================
 
-------------------------------------------------------------
+Complaint Management:
+- Citizen complaint submission
+- Status tracking
+- Role-based access
 
-Backend Setup
+AI Intelligence:
+- Automatic category prediction
+- Automatic priority prediction
+- Confidence scores
+- Explainable rule refinement
 
-Step 1: Clone the repository and navigate to the server folder
+Analytics:
+- Category analytics
+- Priority analytics
+- Monthly trends
+- Ward trends
 
-git clone <repository-url>
-cd AI-Predictive-Governance-System/server
+Monitoring:
+- Hotspot detection (chronic risk areas)
+- Spike detection (early warning)
 
-Step 2: Install backend dependencies
+Governance:
+- Alert generation
+- Alert acknowledgment
+- Alert resolution workflow
+- Administrative accountability
 
-npm install
+PHASE-1 STATUS:
+FROZEN (NO BACKEND LOGIC CHANGES ALLOWED)
+===============================================================================
+*/
 
-Step 3: Environment configuration
+/*
+===============================================================================
+ 8. USER ROLES
+===============================================================================
 
-Create a file named .env inside the server folder and add the following variables:
+Citizen:
+- Submit complaints
+- View own complaint status
+
+Admin (Municipal Officer):
+- View all complaints
+- Monitor hotspots and spikes
+- Analyze trends and forecasts
+- Manage governance alerts
+- Acknowledge and resolve alerts
+===============================================================================
+*/
+
+/*
+===============================================================================
+ 9. REPOSITORY STRUCTURE
+===============================================================================
+
+project-root/
+│
+├── client/        // React frontend
+├── server/        // Node.js backend
+├── ai/            // Python FastAPI AI service
+├── .env.example
+├── README.md
+
+===============================================================================
+*/
+
+/*
+===============================================================================
+ 10. PREREQUISITES (MANDATORY)
+===============================================================================
+
+1. Node.js (v18 or higher)
+2. Python (v3.9 or higher)
+3. MongoDB (local or Atlas)
+4. Git
+
+===============================================================================
+*/
+
+/*
+===============================================================================
+ 11. ENVIRONMENT VARIABLES SETUP
+===============================================================================
+
+Create .env file at project root.
+
+Command:
+cp .env.example .env
+
+Paste the following:
 
 PORT=5000
-MONGO_URI=your_mongodb_connection_string
-JWT_SECRET=your_jwt_secret_key
-CLOUDINARY_CLOUD_NAME=your_cloudinary_name
-CLOUDINARY_API_KEY=your_cloudinary_api_key
-CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+MONGO_URI=mongodb://127.0.0.1:27017/municipal_governance
+JWT_SECRET=replace_with_secure_secret
+AI_SERVICE_URL=http://localhost:8000/predict
+VITE_API_BASE_URL=http://localhost:5000
 
-Important notes:
+IMPORTANT:
+- Do NOT commit .env
+- Only commit .env.example
 
-1. Do not commit the .env file to GitHub
-2. Each team member must create their own .env file
+===============================================================================
+*/
 
-Step 4: MongoDB Atlas configuration
+/*
+===============================================================================
+ 12. BACKEND SETUP (NODE.JS)
+===============================================================================
 
-1. Open MongoDB Atlas
-2. Go to Network Access
-3. Add IP address: 0.0.0.0/0
-4. Save the changes
-
-This allows access from all IP addresses and is acceptable for academic projects.
-
-Step 5: Start the backend server
-
-npm start
-
-If configured correctly, the server will display:
-
-Database Connected
-Server is running on PORT: 5000
-
-------------------------------------------------------------
-
-Frontend Setup
-
-Step 6: Navigate to the client folder
-
-cd ../client
-
-Step 7: Install frontend dependencies
-
+cd server
 npm install
 
-Step 8: Start the frontend development server
+Explicit packages (reference):
+npm install express mongoose cors dotenv jsonwebtoken axios
+npm install --save-dev nodemon
 
+Start backend:
 npm run dev
 
-The frontend application will be available at:
+Backend URL:
+http://localhost:5000
 
+===============================================================================
+*/
+
+/*
+===============================================================================
+ 13. AI SERVICE SETUP (PYTHON FASTAPI)
+===============================================================================
+
+cd ai
+python -m venv venv
+
+Activate venv:
+
+Windows:
+venv\Scripts\activate
+
+Linux/macOS:
+source venv/bin/activate
+
+Install dependencies:
+pip install -r requirements.txt
+
+Start AI service:
+uvicorn api.app:app --reload --port 8000
+
+AI URL:
+http://localhost:8000
+
+===============================================================================
+*/
+
+/*
+===============================================================================
+ 14. FRONTEND SETUP (REACT + VITE)
+===============================================================================
+
+cd client
+npm install
+
+Explicit packages (reference):
+npm install axios react-router-dom chart.js react-chartjs-2
+
+Start frontend:
+npm run dev
+
+Frontend URL:
 http://localhost:5173
 
-------------------------------------------------------------
+===============================================================================
+*/
 
-Frontend and Backend Integration
+/*
+===============================================================================
+ 15. RUN ORDER (IMPORTANT)
+===============================================================================
 
-The frontend communicates with the backend using Axios.
+1. MongoDB
+2. AI Service (port 8000)
+3. Backend Server (port 5000)
+4. Frontend (port 5173)
 
-The API base URL is configured in the file:
+===============================================================================
+*/
 
-client/src/api/axios.js
+/*
+===============================================================================
+ 16. SECURITY & GOVERNANCE
+===============================================================================
 
-The base URL used is:
+- JWT-based authentication
+- Role-based access control
+- No direct database exposure
+- AI outputs are explainable
+- Governance actions are auditable
 
-http://localhost:5000/api
+===============================================================================
+*/
 
-Ensure the following:
+/*
+===============================================================================
+ 17. IMPORTANT RULES FOR TEAM MEMBERS
+===============================================================================
 
-1. Backend server is running before starting frontend
-2. Ports are configured correctly
+- DO NOT modify Phase-1 backend logic
+- DO NOT change AI models
+- DO NOT commit .env
+- Use separate branch for Phase-2
+- Stability > experimentation
 
-------------------------------------------------------------
+===============================================================================
+*/
 
-Authentication and Authorization
-
-1. Users authenticate using email and password
-2. A JWT token is generated on successful login
-3. The token is stored in browser localStorage
-4. Protected APIs require a valid token
-5. Role-based access control is enforced
-
-User Roles
-
-1. citizen
-   - Can create complaints
-   - Can view own complaints
-
-2. admin
-   - Can view all complaints
-   - Can update complaint status
-
-------------------------------------------------------------
-
-API Testing
-
-1. APIs are tested using Postman
-2. A structured Postman collection is maintained
-3. Tested endpoints include:
-
-1. Register
-2. Login
-3. Check authentication
-4. Create complaint
-5. Get my complaints
-6. Get all complaints (admin)
-7. Update complaint status (admin)
-
-------------------------------------------------------------
-
-Common Issues and Solutions
-
-1. Login or registration not working
-   Check .env configuration and MongoDB Atlas IP access
-
-2. JWT authorization errors
-   Verify JWT_SECRET value
-
-3. API not reachable
-   Ensure backend server is running
-
-4. Axios import error in frontend
-   Run npm install axios inside client folder
-
-------------------------------------------------------------
-
-Current Project Status
-
-1. Backend APIs implemented and tested
-2. Authentication and authorization completed
-3. Role-based access control implemented
-4. Frontend UI implemented and integrated
-5. AI prediction module planned for next phase
-
-------------------------------------------------------------
-
-Future Scope
-
-1. AI-based complaint hotspot prediction
-2. Area-wise grievance trend analysis
-3. Automated prioritization of complaints
-4. Resource planning for municipalities
-
-------------------------------------------------------------
-
-Team Information
-
-This project is developed as part of a B.Tech CSE final year project by a team of four members.
-
-------------------------------------------------------------
-
-License
-
-This project is intended strictly for academic and educational purposes only.
+/*
+===============================================================================
+ END OF README
+===============================================================================
+*/
