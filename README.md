@@ -301,8 +301,13 @@ source venv/bin/activate
 Install dependencies:
 pip install -r requirements.txt
 
+pip install sentence-transformers
+
+
 Start AI service:
-uvicorn api.app:app --reload --port 8000
+python -m uvicorn api.app:app --reload --port 8000
+pip install hf_xet(optional)
+
 
 AI URL:
 http://localhost:8000
