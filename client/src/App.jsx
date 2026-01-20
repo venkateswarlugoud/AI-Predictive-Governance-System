@@ -11,6 +11,7 @@ import HotspotsView from "./pages/HotspotsView";
 import SpikesView from "./pages/SpikesView";
 import AlertsListView from "./pages/AlertsListView";
 import AlertDetailView from "./pages/AlertDetailView";
+import ComplaintDetailView from "./pages/ComplaintDetailView";
 import Navbar from "./components/Navbar";
 import PrivateRoute from "./components/PrivateRoute";
 import AdminRoute from "./components/AdminRoute";
@@ -92,6 +93,14 @@ function App() {
           element={
             <AdminRoute>
               <AlertDetailView />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/complaints/:id"
+          element={
+            <AdminRoute>
+              <ComplaintDetailView />
             </AdminRoute>
           }
         />
