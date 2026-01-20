@@ -15,6 +15,8 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  LineChart,
+  Line,
 } from "recharts";
 import "./AdminDashboard.css";
 
@@ -533,14 +535,17 @@ const AdminDashboard = () => {
             <div className="overview-stat-card overview-stat-high">
               <div className="overview-stat-value">{stats.high}</div>
               <div className="overview-stat-label">High Priority</div>
+              <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px", fontWeight: 400 }}>AI-assisted</div>
             </div>
             <div className="overview-stat-card overview-stat-medium">
               <div className="overview-stat-value">{stats.medium}</div>
               <div className="overview-stat-label">Medium Priority</div>
+              <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px", fontWeight: 400 }}>AI-assisted</div>
             </div>
             <div className="overview-stat-card overview-stat-low">
               <div className="overview-stat-value">{stats.low}</div>
               <div className="overview-stat-label">Low Priority</div>
+              <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px", fontWeight: 400 }}>AI-assisted</div>
             </div>
           </div>
         </div>
@@ -723,7 +728,8 @@ const AdminDashboard = () => {
                     >
                       Created Date {sortField === "createdAt" && (sortOrder === "asc" ? "↑" : "↓")}
                     </th>
-                    <th>Action</th>
+                    <th>Status Update</th>
+                    <th>Details</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -739,10 +745,26 @@ const AdminDashboard = () => {
                           {complaint.priority || "N/A"}
                         </span>
                       </td>
-                      <td>
-                        <span className={`badge ${getStatusBadge(complaint.status)}`}>
-                          {complaint.status || "New"}
-                        </span>
+                      <td style={{ verticalAlign: "middle" }}>
+                        {complaint.isRepeated ? (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px", alignItems: "flex-start" }}>
+                            <span className={`badge ${getStatusBadge(complaint.status)}`} style={{ display: "inline-block" }}>
+                              {complaint.status || "New"}
+                            </span>
+                            <span style={{ 
+                              fontSize: "11px", 
+                              color: "#94a3b8",
+                              fontWeight: 400,
+                              lineHeight: "1.2"
+                            }}>
+                              Advisory: Potential Repeat
+                            </span>
+                          </div>
+                        ) : (
+                          <span className={`badge ${getStatusBadge(complaint.status)}`}>
+                            {complaint.status || "New"}
+                          </span>
+                        )}
                       </td>
                       <td className="table-location">{complaint.location || "N/A"}</td>
                       <td className="table-date">{formatDate(complaint.createdAt)}</td>
@@ -751,11 +773,30 @@ const AdminDashboard = () => {
                           className="status-select"
                           value={complaint.status || "New"}
                           onChange={(e) => updateStatus(complaint._id, e.target.value)}
+                          style={{ 
+                            padding: "6px 10px",
+                            fontSize: "13px",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "4px",
+                            backgroundColor: "#ffffff",
+                            color: "#334155",
+                            cursor: "pointer",
+                            minWidth: "140px"
+                          }}
                         >
                           <option value="New">New</option>
                           <option value="In Progress">In Progress</option>
                           <option value="Resolved">Resolved</option>
                         </select>
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => navigate(`/admin/complaints/${complaint._id}`)}
+                          className="refresh-btn"
+                          style={{ fontSize: "13px", padding: "6px 12px" }}
+                        >
+                          View Details
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1153,6 +1194,189 @@ const AdminDashboard = () => {
                             ))}
                           </tbody>
                         </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Divider */}
+                <div className="monitoring-divider"></div>
+
+                {/* Priority Analytics (AI-Assisted) */}
+                <div className="monitoring-subsection">
+                  <h3 className="subsection-title">Priority Analytics (AI-Assisted)</h3>
+                  <p className="monitoring-explanation" style={{ marginBottom: "24px" }}>
+                    Analysis of system-assigned priorities using AI-assisted rule intelligence. Priorities are system-assigned and may be reviewed or overridden by authorized personnel.
+                  </p>
+
+                  {/* Priority Distribution (Donut Chart) */}
+                  {priorityDistribution.length > 0 && (
+                    <div style={{ marginBottom: "48px" }}>
+                      <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "8px" }}>
+                        Priority Distribution
+                      </h4>
+                      <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "16px", fontStyle: "italic" }}>
+                        Priorities are system-assigned using AI-assisted rule intelligence.
+                      </p>
+                      <div className="chart-container">
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
+                              data={priorityDistribution.map(item => ({
+                                name: item._id || "Unknown",
+                                value: item.count || 0
+                              }))}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                              outerRadius={100}
+                              fill="#8884d8"
+                              dataKey="value"
+                            >
+                              {priorityDistribution.map((entry, index) => {
+                                const priorityColors = { High: "#dc2626", Medium: "#f59e0b", Low: "#10b981" };
+                                return <Cell key={`cell-${index}`} fill={priorityColors[entry._id] || "#64748b"} />;
+                              })}
+                            </Pie>
+                            <Tooltip />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Priority by Category */}
+                  {complaints.length > 0 && (
+                    <div style={{ marginBottom: "48px" }}>
+                      <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                        Priority by Category
+                      </h4>
+                      <div className="chart-container">
+                        <ResponsiveContainer width="100%" height={350}>
+                          <BarChart
+                            data={(() => {
+                              const categoryPriorityMap = {};
+                              complaints.forEach(complaint => {
+                                if (complaint.category && complaint.priority) {
+                                  if (!categoryPriorityMap[complaint.category]) {
+                                    categoryPriorityMap[complaint.category] = { category: complaint.category, High: 0, Medium: 0, Low: 0 };
+                                  }
+                                  categoryPriorityMap[complaint.category][complaint.priority] = 
+                                    (categoryPriorityMap[complaint.category][complaint.priority] || 0) + 1;
+                                }
+                              });
+                              return Object.values(categoryPriorityMap);
+                            })()}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis
+                              dataKey="category"
+                              angle={-45}
+                              textAnchor="end"
+                              height={100}
+                              tick={{ fontSize: 12 }}
+                            />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip />
+                            <Legend />
+                            <Bar dataKey="High" fill="#dc2626" name="High" />
+                            <Bar dataKey="Medium" fill="#f59e0b" name="Medium" />
+                            <Bar dataKey="Low" fill="#10b981" name="Low" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Priority by Ward */}
+                  {complaints.length > 0 && (
+                    <div style={{ marginBottom: "48px" }}>
+                      <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                        Priority by Ward
+                      </h4>
+                      <div className="chart-container">
+                        <ResponsiveContainer width="100%" height={350}>
+                          <BarChart
+                            data={(() => {
+                              const wardPriorityMap = {};
+                              complaints.forEach(complaint => {
+                                if (complaint.ward && complaint.priority) {
+                                  if (!wardPriorityMap[complaint.ward]) {
+                                    wardPriorityMap[complaint.ward] = { ward: complaint.ward, High: 0, Medium: 0, Low: 0 };
+                                  }
+                                  wardPriorityMap[complaint.ward][complaint.priority] = 
+                                    (wardPriorityMap[complaint.ward][complaint.priority] || 0) + 1;
+                                }
+                              });
+                              return Object.values(wardPriorityMap).slice(0, 10); // Limit to top 10 wards
+                            })()}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis
+                              dataKey="ward"
+                              angle={-45}
+                              textAnchor="end"
+                              height={100}
+                              tick={{ fontSize: 12 }}
+                            />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip />
+                            <Legend />
+                            <Bar dataKey="High" stackId="a" fill="#dc2626" name="High" />
+                            <Bar dataKey="Medium" stackId="a" fill="#f59e0b" name="Medium" />
+                            <Bar dataKey="Low" stackId="a" fill="#10b981" name="Low" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Priority Trend Over Time */}
+                  {complaints.length > 0 && (
+                    <div style={{ marginBottom: "32px" }}>
+                      <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                        Priority Trend Over Time
+                      </h4>
+                      <div className="chart-container">
+                        <ResponsiveContainer width="100%" height={350}>
+                          <LineChart
+                            data={(() => {
+                              const monthPriorityMap = {};
+                              complaints.forEach(complaint => {
+                                if (complaint.createdAt && complaint.priority) {
+                                  const date = new Date(complaint.createdAt);
+                                  const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                                  if (!monthPriorityMap[monthKey]) {
+                                    monthPriorityMap[monthKey] = { month: monthKey, High: 0, Medium: 0, Low: 0 };
+                                  }
+                                  monthPriorityMap[monthKey][complaint.priority] = 
+                                    (monthPriorityMap[monthKey][complaint.priority] || 0) + 1;
+                                }
+                              });
+                              return Object.values(monthPriorityMap).sort((a, b) => a.month.localeCompare(b.month));
+                            })()}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis 
+                              dataKey="month" 
+                              tick={{ fontSize: 12 }}
+                              angle={-45}
+                              textAnchor="end"
+                              height={80}
+                            />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip />
+                            <Legend />
+                            <Line type="monotone" dataKey="High" stroke="#dc2626" strokeWidth={2} name="High" />
+                            <Line type="monotone" dataKey="Medium" stroke="#f59e0b" strokeWidth={2} name="Medium" />
+                            <Line type="monotone" dataKey="Low" stroke="#10b981" strokeWidth={2} name="Low" />
+                          </LineChart>
+                        </ResponsiveContainer>
                       </div>
                     </div>
                   )}

@@ -12,7 +12,9 @@ import analyticsRoutes from "./routes/analyticsRoutes.js";
 import hotspotRoutes from "./routes/hotspotRoutes.js";
 import spikeRoutes from "./routes/spikeRoutes.js";
 import alertRoutes from "./routes/alertRoutes.js";
+import embeddingRoutes from "./embeddings/embeddingRoutes.js";
 
+console.log("EMBEDDING_SERVICE_URL =", process.env.EMBEDDING_SERVICE_URL);
 console.log("🚀 SERVER.JS FILE LOADED");
 
 
@@ -39,6 +41,8 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/hotspots", hotspotRoutes);
 app.use("/api/spikes", spikeRoutes);
 app.use("/api/alerts", alertRoutes);
+console.log("✅ Mounting /api/embeddings routes");
+app.use("/api/embeddings", embeddingRoutes);
 
 
 

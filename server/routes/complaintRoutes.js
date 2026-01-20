@@ -3,6 +3,7 @@ import {
   createComplaint,
   getAllComplaints,
   getMyComplaints,
+  getComplaintById,
   updateComplaintStatus,
 } from "../controllers/complaintController.js";
 
@@ -14,6 +15,7 @@ const router = express.Router();
 router.post("/", protectRoute,createComplaint);
 router.get("/my", protectRoute, getMyComplaints);
 router.get("/", protectRoute, adminOnly, getAllComplaints);
+router.get("/:id", protectRoute, adminOnly, getComplaintById);
 router.put("/:id", protectRoute, adminOnly, updateComplaintStatus);
 
 export default router;
