@@ -11,7 +11,7 @@ import axios from "axios";
  */
 
 const EMBEDDING_SERVICE_URL =
-  process.env.EMBEDDING_SERVICE_URL || "http://127.0.0.1:8001/embed";
+  process.env.EMBEDDING_SERVICE_URL || "http://127.0.0.1:8000/embed";
 
 /**
  * Generate embedding vector for text

@@ -7,12 +7,24 @@ const complaintSchema = new mongoose.Schema(
 
     category: {
       type: String,
-      enum: ["Sanitation", "Roads", "Electricity", "Water"],
+      enum: ["Sanitation", "Roads", "Electricity", "Water", "Uncertain"],
       required: true,
       index: true,
     },
 
     categoryConfidence: Number,
+
+    // Governance fields for category
+    categorySource: {
+      type: String,
+      enum: ["AI", "RULE", "HUMAN"],
+      default: "RULE",
+    },
+
+    categoryDecisionStatus: {
+      type: String,
+      enum: ["AI_CONFIRMED", "AI_SUGGESTED", "REQUIRES_REVIEW", "FALLBACK_RULE", "INVALID_INPUT", "INVALID_CONFIDENCE"],
+    },
 
     priority: {
       type: String,
@@ -22,6 +34,24 @@ const complaintSchema = new mongoose.Schema(
     },
 
     priorityConfidence: Number,
+
+    // Governance fields for priority
+    prioritySource: {
+      type: String,
+      enum: ["AI", "RULE", "HUMAN"],
+      default: "RULE",
+    },
+
+    priorityDecisionStatus: {
+      type: String,
+      enum: ["AI_CONFIRMED", "AI_SUGGESTED", "REQUIRES_REVIEW", "FALLBACK_RULE", "INVALID_INPUT", "INVALID_CONFIDENCE"],
+    },
+
+    // AI model version tracking
+    aiModelVersion: {
+      type: String,
+      default: null,
+    },
 
     location: { type: String, required: true },
     ward: { type: String, required: true, index: true },

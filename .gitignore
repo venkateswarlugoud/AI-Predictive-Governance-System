@@ -93,3 +93,6 @@ lerna-debug.log*
 *.bak
 *.backup
 *.old
+ARCHITECTURE_GUIDE.md
+GOVERNANCE_IMPLEMENTATION.md
+POSTMAN_TESTING_GUIDE.md
