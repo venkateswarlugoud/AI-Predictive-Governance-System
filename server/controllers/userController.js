@@ -119,6 +119,59 @@ export const loginUser = async (req, res) => {
 };
 
 // =======================================
+// FORGOT PASSWORD
+// =======================================
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Validate input
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    // Find user
+    const user = await User.findOne({ email });
+    if (!user) {
+      // For security, don't reveal if email exists or not
+      return res.status(200).json({
+        success: true,
+        message: "If an account exists with this email, a password reset link has been sent.",
+      });
+    }
+
+    // Generate reset token (valid for 1 hour)
+    const resetToken = jwt.sign(
+      { id: user._id, type: "password-reset" },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    // In production, send email with reset link
+    // For now, we'll just return success
+    // TODO: Integrate email service (nodemailer, sendgrid, etc.)
+    // const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+    // await sendPasswordResetEmail(user.email, resetLink);
+
+    console.log(`Password reset token for ${email}: ${resetToken}`);
+
+    return res.status(200).json({
+      success: true,
+      message: "If an account exists with this email, a password reset link has been sent.",
+    });
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to process password reset request",
+    });
+  }
+};
+
+// =======================================
 // CHECK AUTH (Protected Route)
 // =======================================
 export const checkAuth = (req, res) => {

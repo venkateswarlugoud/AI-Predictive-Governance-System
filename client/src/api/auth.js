@@ -35,3 +35,8 @@ export const getToken = () => {
 export const isAuthenticated = () => {
   return !!getToken();
 };
+
+export const forgotPassword = async (email) => {
+  const response = await API.post("/auth/forgot-password", { email });
+  return response.data;
+};
