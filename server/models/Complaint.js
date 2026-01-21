@@ -56,20 +56,6 @@ const complaintSchema = new mongoose.Schema(
     location: { type: String, required: true },
     ward: { type: String, required: true, index: true },
 
-    // 🔥 EMBEDDING (for repeat detection)
-    embedding: {
-      type: [Number],
-      index: false, // cosine done in app, not DB
-    },
-
-    isRepeated: { type: Boolean, default: false },
-    similarityScore: Number,
-
-    matchedComplaint: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Complaint",
-    },
-
     status: {
       type: String,
       enum: ["New", "In Progress", "Resolved"],
