@@ -4,6 +4,7 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import LandingPage from "./pages/LandingPage";
 import CreateComplaint from "./pages/CreateComplaint";
+import Dashboard from "./pages/Dashboard";
 import MyComplaints from "./pages/MyComplaints";
 import AdminDashboard from "./pages/AdminDashboard";
 import ProfilePage from "./pages/ProfilePage";
@@ -36,7 +37,7 @@ function App() {
           path="/dashboard"
           element={
             <PrivateRoute>
-              <MyComplaints />
+              <Dashboard />
             </PrivateRoute>
           }
         />

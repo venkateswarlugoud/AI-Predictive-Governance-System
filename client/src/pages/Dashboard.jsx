@@ -4,11 +4,10 @@ import { useAuth } from "../context/AuthContext";
 import API from "../api/axios";
 import "./Dashboard.css";
 
-const MyComplaints = () => {
+const Dashboard = () => {
   const { user } = useAuth();
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all");
 
   useEffect(() => {
     fetchComplaints();
@@ -53,15 +52,12 @@ const MyComplaints = () => {
     }
   };
 
-  const filteredComplaints =
-    filter === "all"
-      ? complaints
-      : complaints.filter((c) => {
-          if (filter === "New") {
-            return c.status === "New" || c.status === "Pending";
-          }
-          return c.status === filter;
-        });
+  const stats = {
+    total: complaints.length,
+    new: complaints.filter((c) => c.status === "New" || c.status === "Pending").length,
+    inProgress: complaints.filter((c) => c.status === "In Progress").length,
+    resolved: complaints.filter((c) => c.status === "Resolved").length,
+  };
 
   if (loading) {
     return (
@@ -78,55 +74,55 @@ const MyComplaints = () => {
   return (
     <div className="page-container">
       <div className="container">
+        <div className="dashboard-header">
+          <div>
+            <h1 className="dashboard-title">Welcome back, {user?.name}</h1>
+            <p className="dashboard-subtitle">Manage your municipal grievances and track their resolution progress</p>
+          </div>
+          <Link to="/complaint/create" className="btn btn-primary">
+            + Report Municipal Issue
+          </Link>
+        </div>
+
+        <div className="stats-grid">
+          <div className="stat-card">
+            <div className="stat-value">{stats.total}</div>
+            <div className="stat-label">Total Grievances</div>
+          </div>
+          <div className="stat-card stat-new">
+            <div className="stat-value">{stats.new}</div>
+            <div className="stat-label">New</div>
+          </div>
+          <div className="stat-card stat-progress">
+            <div className="stat-value">{stats.inProgress}</div>
+            <div className="stat-label">In Progress</div>
+          </div>
+          <div className="stat-card stat-resolved">
+            <div className="stat-value">{stats.resolved}</div>
+            <div className="stat-label">Resolved</div>
+          </div>
+        </div>
+
         <div className="dashboard-section">
           <div className="section-header">
             <h2 className="section-title">My Municipal Grievances</h2>
             <div className="filter-tabs">
-              <button
-                className={`filter-tab ${filter === "all" ? "active" : ""}`}
-                onClick={() => setFilter("all")}
-              >
-                All
-              </button>
-              <button
-                className={`filter-tab ${filter === "New" ? "active" : ""}`}
-                onClick={() => setFilter("New")}
-              >
-                New
-              </button>
-              <button
-                className={`filter-tab ${filter === "In Progress" ? "active" : ""}`}
-                onClick={() => setFilter("In Progress")}
-              >
-                In Progress
-              </button>
-              <button
-                className={`filter-tab ${filter === "Resolved" ? "active" : ""}`}
-                onClick={() => setFilter("Resolved")}
-              >
-                Resolved
-              </button>
+              <button className="filter-tab active">All</button>
             </div>
           </div>
 
-          {filteredComplaints.length === 0 ? (
+          {complaints.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">📋</div>
               <h3>No grievances found</h3>
-              <p>
-                {filter === "all"
-                  ? "You haven't submitted any municipal grievances yet."
-                  : `No grievances with status "${filter}".`}
-              </p>
-              {filter === "all" && (
-                <Link to="/complaint/create" className="btn btn-primary">
-                  Report Your First Municipal Issue
-                </Link>
-              )}
+              <p>You haven't submitted any municipal grievances yet.</p>
+              <Link to="/complaint/create" className="btn btn-primary">
+                Report Your First Municipal Issue
+              </Link>
             </div>
           ) : (
             <div className="complaints-grid">
-              {filteredComplaints.map((complaint) => (
+              {complaints.slice(0, 6).map((complaint) => (
                 <div key={complaint._id} className="complaint-card">
                   <div className="complaint-header">
                     <h3 className="complaint-title">{complaint.title || "Untitled Complaint"}</h3>
@@ -159,4 +155,4 @@ const MyComplaints = () => {
   );
 };
 
-export default MyComplaints;
+export default Dashboard;
