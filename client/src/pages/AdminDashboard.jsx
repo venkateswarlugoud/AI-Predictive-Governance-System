@@ -746,25 +746,9 @@ const AdminDashboard = () => {
                         </span>
                       </td>
                       <td style={{ verticalAlign: "middle" }}>
-                        {complaint.isRepeated ? (
-                          <div style={{ display: "flex", flexDirection: "column", gap: "2px", alignItems: "flex-start" }}>
-                            <span className={`badge ${getStatusBadge(complaint.status)}`} style={{ display: "inline-block" }}>
-                              {complaint.status || "New"}
-                            </span>
-                            <span style={{ 
-                              fontSize: "11px", 
-                              color: "#94a3b8",
-                              fontWeight: 400,
-                              lineHeight: "1.2"
-                            }}>
-                              Advisory: Potential Repeat
-                            </span>
-                          </div>
-                        ) : (
-                          <span className={`badge ${getStatusBadge(complaint.status)}`}>
-                            {complaint.status || "New"}
-                          </span>
-                        )}
+                        <span className={`badge ${getStatusBadge(complaint.status)}`}>
+                          {complaint.status || "New"}
+                        </span>
                       </td>
                       <td className="table-location">{complaint.location || "N/A"}</td>
                       <td className="table-date">{formatDate(complaint.createdAt)}</td>

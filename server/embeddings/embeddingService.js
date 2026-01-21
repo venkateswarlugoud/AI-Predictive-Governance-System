@@ -10,8 +10,19 @@ import axios from "axios";
  * Embeddings are supporting signals only, not decisions.
  */
 
-const EMBEDDING_SERVICE_URL =
-  process.env.EMBEDDING_SERVICE_URL || "http://127.0.0.1:8000/embed";
+const AI_SERVICE_URL =
+  process.env.AI_SERVICE_URL || "http://127.0.0.1:8000/predict";
+
+const getAiBaseUrl = () => {
+  try {
+    const u = new URL(AI_SERVICE_URL);
+    return u.origin;
+  } catch {
+    return "http://127.0.0.1:8000";
+  }
+};
+
+const EMBEDDING_SERVICE_URL = `${getAiBaseUrl()}/embed`;
 
 /**
  * Generate embedding vector for text

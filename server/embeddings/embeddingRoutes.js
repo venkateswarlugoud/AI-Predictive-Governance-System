@@ -5,7 +5,6 @@ import { adminOnly } from "../middleware/roleMiddleware.js";
 
 
 
-console.log("✅ embeddingRoutes.js loaded");
 /**
  * PHASE-2 ADVISORY EMBEDDING ROUTES
  *
