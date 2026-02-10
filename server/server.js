@@ -13,6 +13,8 @@ import hotspotRoutes from "./routes/hotspotRoutes.js";
 import spikeRoutes from "./routes/spikeRoutes.js";
 import alertRoutes from "./routes/alertRoutes.js";
 import embeddingRoutes from "./embeddings/embeddingRoutes.js";
+import wardRouter from "./routes/wardRoutes.js";
+import { getCities } from "./controllers/wardController.js";
 
 
 const app = express();
@@ -34,6 +36,8 @@ app.use("/api/hotspots", hotspotRoutes);
 app.use("/api/spikes", spikeRoutes);
 app.use("/api/alerts", alertRoutes);
 app.use("/api/embeddings", embeddingRoutes);
+app.get("/api/cities", getCities);
+app.use("/api/wards", wardRouter);
 
 
 

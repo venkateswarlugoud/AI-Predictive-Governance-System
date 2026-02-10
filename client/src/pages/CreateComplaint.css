@@ -45,6 +45,93 @@
   border-top: 1px solid var(--border-color);
 }
 
+/* Ward Autocomplete Styles */
+.ward-autocomplete-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.ward-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 1000;
+  margin-top: 4px;
+}
+
+.ward-option {
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.2s ease;
+}
+
+.ward-option:last-child {
+  border-bottom: none;
+}
+
+.ward-option:hover {
+  background-color: var(--background);
+}
+
+.ward-option.selected {
+  background-color: #eff6ff;
+  border-left: 3px solid var(--primary-color);
+}
+
+.ward-option.no-results {
+  color: var(--text-secondary);
+  cursor: default;
+  font-style: italic;
+}
+
+.ward-option.no-results:hover {
+  background-color: var(--surface);
+}
+
+.ward-option-text {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.ward-option-text strong {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.ward-option-code {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: 'Courier New', monospace;
+}
+
+/* Scrollbar styling for dropdown */
+.ward-dropdown::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ward-dropdown::-webkit-scrollbar-track {
+  background: var(--background);
+  border-radius: 4px;
+}
+
+.ward-dropdown::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+.ward-dropdown::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
 @media (max-width: 768px) {
   .page-title {
     font-size: 28px;
@@ -60,5 +147,9 @@
 
   .form-actions .btn {
     width: 100%;
+  }
+
+  .ward-dropdown {
+    max-height: 200px;
   }
 }
