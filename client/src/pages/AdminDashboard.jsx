@@ -63,10 +63,27 @@ const AdminDashboard = () => {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState(null);
 
+  // SLA Analytics State (Read-only, Advisory)
+  const [slaSummary, setSlaSummary] = useState(null);
+
+  // Escalation Analytics State (Read-only, Advisory)
+  const [escalationSummary, setEscalationSummary] = useState(null);
+
+  // Repeat-Pattern Analytics State (Read-only, Advisory)
+  const [repeatByCategory, setRepeatByCategory] = useState([]);
+  const [repeatByWard, setRepeatByWard] = useState([]);
+  const [repeatTrends, setRepeatTrends] = useState([]);
+  const [repeatLoading, setRepeatLoading] = useState(false);
+  const [repeatError, setRepeatError] = useState(null);
+
   // Governance State
   const [alerts, setAlerts] = useState([]);
   const [governanceLoading, setGovernanceLoading] = useState(false);
   const [governanceError, setGovernanceError] = useState(null);
+
+  // Notification disclaimer copy (UI)
+  const NOTIFICATION_UI_DISCLAIMER =
+    "Notifications are for information only. They do not replace official actions by authorities.";
 
   useEffect(() => {
     fetchComplaints();
@@ -83,6 +100,7 @@ const AdminDashboard = () => {
     } else if (activeTab === "analytics") {
       fetchAnalyticsOverview();
       fetchTrends();
+      fetchRepeatAnalytics();
     } else if (activeTab === "predictive") {
       fetchForecasts();
     } else if (activeTab === "governance") {
@@ -97,6 +115,7 @@ const AdminDashboard = () => {
     } else if (activeTab === "analytics") {
       fetchAnalyticsOverview();
       fetchTrends();
+      fetchRepeatAnalytics();
     } else if (activeTab === "predictive") {
       fetchForecasts();
     } else if (activeTab === "governance") {
@@ -161,10 +180,12 @@ const AdminDashboard = () => {
     setAnalyticsLoading(true);
     setAnalyticsError(null);
     try {
-      const [summaryRes, categoryRes, priorityRes] = await Promise.all([
+      const [summaryRes, categoryRes, priorityRes, slaSummaryRes, escalationSummaryRes] = await Promise.all([
         API.get("/analytics/summary"),
         API.get("/analytics/by-category"),
-        API.get("/analytics/by-priority")
+        API.get("/analytics/by-priority"),
+        API.get("/sla/summary"),
+        API.get("/escalation/summary")
       ]);
 
       if (summaryRes.data.success) {
@@ -176,11 +197,66 @@ const AdminDashboard = () => {
       if (priorityRes.data.success) {
         setPriorityDistribution(priorityRes.data.priorities || []);
       }
+      if (slaSummaryRes.data && slaSummaryRes.data.success) {
+        setSlaSummary(slaSummaryRes.data);
+      } else {
+        setSlaSummary(null);
+      }
+
+      if (escalationSummaryRes.data && escalationSummaryRes.data.success) {
+        setEscalationSummary(escalationSummaryRes.data);
+      } else {
+        setEscalationSummary(null);
+      }
     } catch (error) {
       console.error("Failed to fetch analytics:", error);
       setAnalyticsError(error.response?.data?.message || "Failed to load analytics data");
+      setSlaSummary(null);
+      setEscalationSummary(null);
     } finally {
       setAnalyticsLoading(false);
+    }
+  };
+
+  // Repeat-Pattern Analytics (Read-only, Advisory)
+  const fetchRepeatAnalytics = async () => {
+    setRepeatLoading(true);
+    setRepeatError(null);
+    try {
+      const [byCategoryRes, byWardRes, trendRes] = await Promise.all([
+        API.get("/analytics/repeats/by-category"),
+        API.get("/analytics/repeats/by-ward"),
+        API.get("/analytics/repeats/trend"),
+      ]);
+
+      if (byCategoryRes.data.success) {
+        setRepeatByCategory(byCategoryRes.data.repeats || []);
+      } else {
+        setRepeatByCategory([]);
+      }
+
+      if (byWardRes.data.success) {
+        setRepeatByWard(byWardRes.data.repeats || []);
+      } else {
+        setRepeatByWard([]);
+      }
+
+      if (trendRes.data.success) {
+        setRepeatTrends(trendRes.data.trends || []);
+      } else {
+        setRepeatTrends([]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch repeat analytics:", error);
+      setRepeatError(
+        error.response?.data?.message ||
+          "Failed to load repeat-pattern analytics. These insights are advisory only."
+      );
+      setRepeatByCategory([]);
+      setRepeatByWard([]);
+      setRepeatTrends([]);
+    } finally {
+      setRepeatLoading(false);
     }
   };
 
@@ -249,12 +325,48 @@ const AdminDashboard = () => {
     }
   };
 
+  const sendSlaApologyEmail = async (complaint) => {
+    try {
+      const response = await API.post("/notifications/send", {
+        complaintId: complaint._id,
+        type: "SLA_DELAY",
+      });
+
+      if (response.data && response.data.success) {
+        setComplaints((prev) =>
+          prev.map((c) =>
+            c._id === complaint._id
+              ? {
+                  ...c,
+                  apologySent: true,
+                  lastNotifiedAt: new Date().toISOString(),
+                }
+              : c
+          )
+        );
+        setSuccessMessage("SLA delay apology email sent.");
+        setTimeout(() => setSuccessMessage(""), 3000);
+      } else {
+        alert(
+          response.data?.message ||
+            "Unable to send SLA delay apology email. Please try again later."
+        );
+      }
+    } catch (error) {
+      console.error("Failed to send SLA delay apology email:", error);
+      alert(
+        error.response?.data?.message ||
+          "Unable to send SLA delay apology email. Please try again later."
+      );
+    }
+  };
+
   const updateStatus = async (id, status) => {
     try {
       const response = await API.put(`/complaint/${id}`, { status });
       if (response.data.success || response.status === 200) {
         setComplaints((prev) =>
-          prev.map((c) => (c._id === id ? { ...c, status: response.data.complaint?.status || status } : c))
+          prev.map((c) => (c._id === id ? { ...c, ...response.data.complaint } : c))
         );
         setSuccessMessage("Status updated successfully");
         setTimeout(() => setSuccessMessage(""), 3000);
@@ -284,6 +396,15 @@ const AdminDashboard = () => {
       Low: "badge-priority-low",
     };
     return priorityMap[priority] || "badge-priority-low";
+  };
+
+  const getSlaStatusBadge = (status) => {
+    const statusMap = {
+      "On Track": "badge-sla-ontrack",
+      "Approaching Breach": "badge-sla-approaching",
+      Breached: "badge-sla-breached",
+    };
+    return statusMap[status] || "badge-sla-ontrack";
   };
 
   const formatDate = (dateString) => {
@@ -498,6 +619,34 @@ const AdminDashboard = () => {
     low: priorityStats.Low,
   };
 
+  const getEscalationTagClass = (level) => {
+    if (level === "High Risk") return "badge-escalation-high";
+    if (level === "Attention Required") return "badge-escalation-attention";
+    return "badge-escalation-normal";
+  };
+
+  const deriveEscalationLevelFromComplaint = (complaint) => {
+    const slaStatus = complaint.slaStatus || "On Track";
+    const priority = complaint.priority || "Medium";
+
+    // Mirror backend deterministic logic in a simplified, client-only way.
+    let levelIndex = 0; // 0 = Normal, 1 = Attention, 2 = High Risk
+
+    if (slaStatus === "Breached") {
+      levelIndex = 2;
+    } else if (slaStatus === "Approaching Breach") {
+      levelIndex = Math.max(levelIndex, 1);
+    }
+
+    if (priority === "High") {
+      levelIndex = Math.min(2, levelIndex + 1);
+    }
+
+    if (levelIndex <= 0) return "Normal";
+    if (levelIndex === 1) return "Attention Required";
+    return "High Risk";
+  };
+
   if (loading) {
     return (
       <div className="page-container">
@@ -626,6 +775,22 @@ const AdminDashboard = () => {
                     className="search-input"
                   />
                 </div>
+                <div
+                  style={{
+                    marginTop: "12px",
+                    padding: "10px 12px",
+                    backgroundColor: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    color: "#64748b",
+                    maxWidth: "720px",
+                  }}
+                >
+                  <strong>Notification disclaimer:</strong>{" "}
+                  Notifications are informational and do not indicate complaint resolution.{" "}
+                  {NOTIFICATION_UI_DISCLAIMER}
+                </div>
             <div className="admin-filters">
               <div className="filter-group">
                 <label className="filter-label">Category</label>
@@ -720,6 +885,14 @@ const AdminDashboard = () => {
                     >
                       Status {sortField === "status" && (sortOrder === "asc" ? "↑" : "↓")}
                     </th>
+                    <th>
+                      SLA Status (Advisory)
+                    </th>
+                    <th>
+                      Escalation Indicator (Advisory)
+                    </th>
+                    <th>Notification Status</th>
+                    <th>SLA Apology Email</th>
                     <th>Location</th>
                     <th 
                       className="sortable-header"
@@ -749,6 +922,93 @@ const AdminDashboard = () => {
                         <span className={`badge ${getStatusBadge(complaint.status)}`}>
                           {complaint.status || "New"}
                         </span>
+                      </td>
+                      <td style={{ verticalAlign: "middle" }}>
+                        {complaint.slaStatus ? (
+                          <span
+                            className={`badge ${getSlaStatusBadge(complaint.slaStatus)}`}
+                            title="SLA Status (Advisory) – No automatic closure or escalation. Final decisions rest with authorized officials."
+                          >
+                            {complaint.slaStatus}
+                          </span>
+                        ) : (
+                          <span className="table-date">N/A</span>
+                        )}
+                      </td>
+                      <td style={{ verticalAlign: "middle" }}>
+                        {(() => {
+                          const level = deriveEscalationLevelFromComplaint(complaint);
+                          return (
+                            <span
+                              className={`badge ${getEscalationTagClass(level)}`}
+                              title="Advisory Indicator — No automatic action. Escalation decisions remain with authorized officials."
+                            >
+                              {level}
+                            </span>
+                          );
+                        })()}
+                      </td>
+                      <td style={{ verticalAlign: "middle" }}>
+                        {complaint.lastNotifiedAt ? (
+                          <div style={{ fontSize: "12px", color: "#16a34a" }}>
+                            <strong>Sent</strong>
+                            <div style={{ color: "#64748b", marginTop: "2px" }}>
+                              Email sent on {formatDate(complaint.lastNotifiedAt)}
+                            </div>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: "12px", color: "#64748b" }}>
+                            <strong>Not Sent</strong>
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ verticalAlign: "middle" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "4px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              color: complaint.apologySent ? "#16a34a" : "#64748b",
+                              fontWeight: 500,
+                            }}
+                          >
+                            {complaint.apologySent ? "Yes" : "No"}
+                          </span>
+                          <button
+                            type="button"
+                            className="refresh-btn"
+                            style={{
+                              fontSize: "11px",
+                              padding: "4px 8px",
+                              opacity:
+                                complaint.slaStatus === "Breached" && !complaint.apologySent
+                                  ? 1
+                                  : 0.6,
+                              cursor:
+                                complaint.slaStatus === "Breached" && !complaint.apologySent
+                                  ? "pointer"
+                                  : "not-allowed",
+                            }}
+                            disabled={
+                              complaint.slaStatus !== "Breached" || complaint.apologySent
+                            }
+                            onClick={() => {
+                              if (
+                                complaint.slaStatus === "Breached" &&
+                                !complaint.apologySent
+                              ) {
+                                sendSlaApologyEmail(complaint);
+                              }
+                            }}
+                          >
+                            Send SLA Apology
+                          </button>
+                        </div>
                       </td>
                       <td className="table-location">{complaint.location || "N/A"}</td>
                       <td className="table-date">{formatDate(complaint.createdAt)}</td>
@@ -1077,6 +1337,112 @@ const AdminDashboard = () => {
                           </ResponsiveContainer>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* SLA Compliance Overview (Advisory) */}
+                  {slaSummary && (
+                    <div style={{ marginBottom: "32px" }}>
+                      <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
+                        SLA Compliance Overview
+                      </h4>
+                      <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "16px", maxWidth: "720px" }}>
+                        SLA Status (Advisory): SLA indicators help monitor resolution timelines only. They do not auto-close or auto-escalate complaints. Final decisions rest with authorized municipal officials.
+                      </p>
+                      <div className="admin-stats-grid">
+                        <div className="admin-stat-card admin-stat-low">
+                          <div className="admin-stat-content">
+                            <div className="admin-stat-value">
+                              {formatNumber(slaSummary.onTrackCount || 0)}
+                            </div>
+                            <div className="admin-stat-label">On Track</div>
+                            <div className="admin-stat-sublabel">Within SLA window</div>
+                          </div>
+                        </div>
+                        <div className="admin-stat-card admin-stat-medium">
+                          <div className="admin-stat-content">
+                            <div className="admin-stat-value">
+                              {formatNumber(slaSummary.approachingBreachCount || 0)}
+                            </div>
+                            <div className="admin-stat-label">Approaching Breach</div>
+                            <div className="admin-stat-sublabel">≤ 25% time remaining</div>
+                          </div>
+                        </div>
+                        <div className="admin-stat-card admin-stat-high">
+                          <div className="admin-stat-content">
+                            <div className="admin-stat-value">
+                              {formatNumber(slaSummary.breachedCount || 0)}
+                            </div>
+                            <div className="admin-stat-label">Breached</div>
+                            <div className="admin-stat-sublabel">Beyond SLA deadline</div>
+                          </div>
+                        </div>
+                        <div className="admin-stat-card">
+                          <div className="admin-stat-content">
+                            <div className="admin-stat-value">
+                              {formatNumber(slaSummary.totalMonitored || 0)}
+                            </div>
+                            <div className="admin-stat-label">Complaints Under SLA Monitoring</div>
+                            <div className="admin-stat-sublabel">
+                              Active complaints only; advisory monitoring
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Escalation Risk Overview (Advisory) */}
+                  {escalationSummary && (
+                    <div style={{ marginBottom: "32px" }}>
+                      <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
+                        Escalation Risk Overview
+                      </h4>
+                      <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "16px", maxWidth: "720px" }}>
+                        Escalation indicators assist officers in identifying risk. They are advisory only and do not
+                        trigger automatic status changes, routing, or notifications. Final escalation decisions remain
+                        with authorized officials.
+                      </p>
+                      <div className="admin-stats-grid">
+                        <div className="admin-stat-card admin-stat-low">
+                          <div className="admin-stat-content">
+                            <div className="admin-stat-value">
+                              {formatNumber(escalationSummary.normalCount || 0)}
+                            </div>
+                            <div className="admin-stat-label">Normal</div>
+                            <div className="admin-stat-sublabel">No immediate escalation risk</div>
+                          </div>
+                        </div>
+                        <div className="admin-stat-card admin-stat-medium">
+                          <div className="admin-stat-content">
+                            <div className="admin-stat-value">
+                              {formatNumber(escalationSummary.attentionRequiredCount || 0)}
+                            </div>
+                            <div className="admin-stat-label">Attention Required</div>
+                            <div className="admin-stat-sublabel">Officer review recommended</div>
+                          </div>
+                        </div>
+                        <div className="admin-stat-card admin-stat-high">
+                          <div className="admin-stat-content">
+                            <div className="admin-stat-value">
+                              {formatNumber(escalationSummary.highRiskCount || 0)}
+                            </div>
+                            <div className="admin-stat-label">High Risk</div>
+                            <div className="admin-stat-sublabel">Strong risk indicators present</div>
+                          </div>
+                        </div>
+                        <div className="admin-stat-card">
+                          <div className="admin-stat-content">
+                            <div className="admin-stat-value">
+                              {formatNumber(escalationSummary.totalMonitored || 0)}
+                            </div>
+                            <div className="admin-stat-label">Complaints Monitored for Escalation</div>
+                            <div className="admin-stat-sublabel">
+                              Active complaints only; advisory monitoring
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
 
@@ -1586,6 +1952,221 @@ const AdminDashboard = () => {
                         </table>
                       </div>
                     </div>
+                  )}
+                </div>
+
+                {/* Divider */}
+                <div className="monitoring-divider"></div>
+
+                {/* Repeat-Pattern Analytics (AI-assisted, Advisory Only) */}
+                <div className="monitoring-subsection">
+                  <h3 className="subsection-title">
+                    Repeat-Pattern Analytics (AI-assisted, Advisory Only)
+                  </h3>
+                  <p className="monitoring-explanation" style={{ marginBottom: "20px" }}>
+                    Read-only analytics on recurring grievance patterns based on historical complaint data.
+                    Insights are advisory only and do not trigger any automatic escalation or prioritization.
+                  </p>
+
+                  {repeatLoading ? (
+                    <div className="empty-state">
+                      <div className="spinner"></div>
+                      <p>Loading repeat-pattern analytics...</p>
+                    </div>
+                  ) : repeatError ? (
+                    <div className="empty-state">
+                      <h3>Error Loading Repeat-Pattern Analytics</h3>
+                      <p>{repeatError}</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Bar chart: Repeat complaints by category */}
+                      <div style={{ marginBottom: "32px" }}>
+                        <h4
+                          style={{
+                            fontSize: "15px",
+                            fontWeight: 600,
+                            color: "#334155",
+                            marginBottom: "12px",
+                          }}
+                        >
+                          Repeat Complaints by Category
+                        </h4>
+                        <p
+                          style={{
+                            fontSize: "12px",
+                            color: "#64748b",
+                            marginBottom: "12px",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          Counts reflect additional resolved complaints beyond the first occurrence in each
+                          ward-category pair. These indicators are advisory and must be interpreted by officers.
+                        </p>
+                        {repeatByCategory.length === 0 ? (
+                          <div className="empty-state" style={{ padding: "24px 20px", textAlign: "left" }}>
+                            <p style={{ fontSize: "13px" }}>
+                              No repeat complaint patterns detected by category in the available history.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="chart-container">
+                            <ResponsiveContainer width="100%" height={320}>
+                              <BarChart
+                                data={repeatByCategory.map((item) => ({
+                                  name: item._id || "Unknown",
+                                  repeats: item.repeatCount || 0,
+                                }))}
+                                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis
+                                  dataKey="name"
+                                  angle={-45}
+                                  textAnchor="end"
+                                  height={90}
+                                  tick={{ fontSize: 12 }}
+                                />
+                                <YAxis tick={{ fontSize: 12 }} />
+                                <Tooltip />
+                                <Legend />
+                                <Bar dataKey="repeats" fill="#0f766e" name="Repeat Complaints" />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Bar chart: Repeat complaints by ward */}
+                      <div style={{ marginBottom: "32px" }}>
+                        <h4
+                          style={{
+                            fontSize: "15px",
+                            fontWeight: 600,
+                            color: "#334155",
+                            marginBottom: "12px",
+                          }}
+                        >
+                          Repeat Complaints by Ward
+                        </h4>
+                        <p
+                          style={{
+                            fontSize: "12px",
+                            color: "#64748b",
+                            marginBottom: "12px",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          Wards with higher repeat counts may indicate systemic or unresolved underlying issues.
+                          These insights are for planning and oversight only.
+                        </p>
+                        {repeatByWard.length === 0 ? (
+                          <div className="empty-state" style={{ padding: "24px 20px", textAlign: "left" }}>
+                            <p style={{ fontSize: "13px" }}>
+                              No repeat complaint patterns detected by ward in the available history.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="chart-container">
+                            <ResponsiveContainer width="100%" height={320}>
+                              <BarChart
+                                data={repeatByWard
+                                  .slice(0, 12)
+                                  .map((item) => ({
+                                    name: item._id || "Unknown",
+                                    repeats: item.repeatCount || 0,
+                                  }))}
+                                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis
+                                  dataKey="name"
+                                  angle={-45}
+                                  textAnchor="end"
+                                  height={90}
+                                  tick={{ fontSize: 12 }}
+                                />
+                                <YAxis tick={{ fontSize: 12 }} />
+                                <Tooltip />
+                                <Legend />
+                                <Bar dataKey="repeats" fill="#1e3a8a" name="Repeat Complaints" />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Line chart: Repeat complaints over time */}
+                      <div style={{ marginBottom: "8px" }}>
+                        <h4
+                          style={{
+                            fontSize: "15px",
+                            fontWeight: 600,
+                            color: "#334155",
+                            marginBottom: "12px",
+                          }}
+                        >
+                          Monthly Trend of Repeat Complaints
+                        </h4>
+                        <p
+                          style={{
+                            fontSize: "12px",
+                            color: "#64748b",
+                            marginBottom: "12px",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          Trends show how frequently complaints recur over time across all wards and categories.
+                          They support strategic planning but do not change complaint handling workflows.
+                        </p>
+                        {repeatTrends.length === 0 ? (
+                          <div className="empty-state" style={{ padding: "24px 20px", textAlign: "left" }}>
+                            <p style={{ fontSize: "13px" }}>
+                              Insufficient historical data to compute a monthly trend of repeat complaints.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="chart-container">
+                            <ResponsiveContainer width="100%" height={340}>
+                              <LineChart
+                                data={repeatTrends.map((item) => {
+                                  const year = item._id?.year;
+                                  const month = item._id?.month;
+                                  const monthKey =
+                                    year && month
+                                      ? `${year}-${String(month).padStart(2, "0")}`
+                                      : "Unknown";
+                                  return {
+                                    month: monthKey,
+                                    repeats: item.repeatCount || 0,
+                                  };
+                                })}
+                                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis
+                                  dataKey="month"
+                                  angle={-45}
+                                  textAnchor="end"
+                                  height={90}
+                                  tick={{ fontSize: 12 }}
+                                />
+                                <YAxis tick={{ fontSize: 12 }} />
+                                <Tooltip />
+                                <Legend />
+                                <Line
+                                  type="monotone"
+                                  dataKey="repeats"
+                                  stroke="#0f766e"
+                                  strokeWidth={2}
+                                  name="Repeat Complaints"
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               </>

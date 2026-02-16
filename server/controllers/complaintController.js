@@ -1,6 +1,16 @@
 import Complaint from "../models/Complaint.js";
 import { predictComplaint } from "../services/aiService.js";
 import { evaluateConfidence } from "../services/confidenceGovernance.js";
+import { computeSlaForComplaint } from "../services/slaService.js";
+import User from "../models/User.js";
+import {
+  NOTIFICATION_TYPES,
+  isWithinNotificationRateLimit,
+  sendEmail,
+  buildAcknowledgementEmail,
+  buildResolutionConfirmationEmail,
+  buildStatusUpdateEmail,
+} from "../services/notificationService.js";
 
 /**
  * =======================================
@@ -163,6 +173,27 @@ export const createComplaint = async (req, res) => {
       createdAt: now,
     });
 
+    // Best-effort acknowledgement email (does not affect complaint creation).
+    try {
+      const user = await User.findById(req.user._id).select("name email");
+      if (user && user.email && isWithinNotificationRateLimit(complaint, 0)) {
+        const emailPayload = buildAcknowledgementEmail(complaint, user);
+        const result = await sendEmail({
+          to: user.email,
+          subject: emailPayload.subject,
+          text: emailPayload.text,
+        });
+        if (result.success) {
+          complaint.lastNotifiedAt = new Date();
+          await complaint.save();
+        } else {
+          console.error("⚠️ ACK EMAIL FAILED (non-blocking):", result.error);
+        }
+      }
+    } catch (notifyError) {
+      console.error("⚠️ ACK EMAIL FAILED (non-blocking):", notifyError.code, notifyError.response, notifyError.message);
+    }
+
     return res.status(201).json({
       success: true,
       complaint,
@@ -190,12 +221,21 @@ export const createComplaint = async (req, res) => {
  */
 export const getAllComplaints = async (req, res) => {
   try {
-    const complaints = await Complaint.find()
-      .sort({ createdAt: -1 });
+    const complaints = await Complaint.find().sort({ createdAt: -1 });
+
+    // Attach SLA advisory fields (read-only, not persisted)
+    const complaintsWithSla = complaints.map((complaint) => {
+      const base = complaint.toObject ? complaint.toObject() : complaint;
+      const sla = computeSlaForComplaint(base);
+      return {
+        ...base,
+        ...sla,
+      };
+    });
 
     return res.json({
       success: true,
-      complaints,
+      complaints: complaintsWithSla,
     });
   } catch (error) {
     console.error("❌ FETCH ALL COMPLAINTS ERROR:", error.message);
@@ -221,9 +261,19 @@ export const getMyComplaints = async (req, res) => {
       user: req.user._id,
     }).sort({ createdAt: -1 });
 
+    // Attach SLA advisory fields for citizen view as well (read-only)
+    const complaintsWithSla = complaints.map((complaint) => {
+      const base = complaint.toObject ? complaint.toObject() : complaint;
+      const sla = computeSlaForComplaint(base);
+      return {
+        ...base,
+        ...sla,
+      };
+    });
+
     return res.json({
       success: true,
-      complaints,
+      complaints: complaintsWithSla,
     });
   } catch (error) {
     console.error("❌ FETCH MY COMPLAINTS ERROR:", error.message);
@@ -254,10 +304,15 @@ export const getComplaintById = async (req, res) => {
         message: "Complaint not found",
       });
     }
+    const base = complaint.toObject ? complaint.toObject() : complaint;
+    const sla = computeSlaForComplaint(base);
 
     return res.json({
       success: true,
-      complaint,
+      complaint: {
+        ...base,
+        ...sla,
+      },
     });
   } catch (error) {
     console.error("❌ FETCH COMPLAINT BY ID ERROR:", error.message);
@@ -290,22 +345,74 @@ export const updateComplaintStatus = async (req, res) => {
       });
     }
 
-    const updatedComplaint = await Complaint.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
+    const existingComplaint = await Complaint.findById(req.params.id);
 
-    if (!updatedComplaint) {
+    if (!existingComplaint) {
       return res.status(404).json({
         success: false,
         message: "Complaint not found",
       });
     }
 
+    const previousStatus = existingComplaint.status;
+    existingComplaint.status = status;
+    const updatedComplaint = await existingComplaint.save();
+
+    // Best-effort, governance-safe notifications on admin status change.
+    try {
+      const populatedComplaint = await Complaint.findById(updatedComplaint._id).populate(
+        "user"
+      );
+      const citizen = populatedComplaint?.user;
+
+      if (citizen && citizen.email && isWithinNotificationRateLimit(populatedComplaint, 10)) {
+        if (status === "Resolved" && previousStatus !== "Resolved") {
+          const resolutionPayload = buildResolutionConfirmationEmail(
+            populatedComplaint,
+            citizen
+          );
+          const result = await sendEmail({
+            to: citizen.email,
+            subject: resolutionPayload.subject,
+            text: resolutionPayload.text,
+          });
+          if (result.success) {
+            populatedComplaint.lastNotifiedAt = new Date();
+            await populatedComplaint.save();
+          } else {
+            console.error("⚠️ RESOLUTION EMAIL FAILED (non-blocking):", result.error);
+          }
+        } else if (status !== previousStatus) {
+          const statusPayload = buildStatusUpdateEmail(
+            populatedComplaint,
+            citizen,
+            previousStatus
+          );
+          const result = await sendEmail({
+            to: citizen.email,
+            subject: statusPayload.subject,
+            text: statusPayload.text,
+          });
+          if (result.success) {
+            populatedComplaint.lastNotifiedAt = new Date();
+            await populatedComplaint.save();
+          } else {
+            console.error("⚠️ STATUS UPDATE EMAIL FAILED (non-blocking):", result.error);
+          }
+        }
+      }
+    } catch (notifyError) {
+      console.error("⚠️ STATUS UPDATE EMAIL FAILED (non-blocking):", notifyError.code, notifyError.response, notifyError.message);
+    }
+
+    // Re-fetch complaint so response includes lastNotifiedAt/apologySent if they were just updated
+    const complaintToReturn = await Complaint.findById(updatedComplaint._id);
+    const base = complaintToReturn.toObject ? complaintToReturn.toObject() : complaintToReturn;
+    const sla = computeSlaForComplaint(base);
+
     return res.json({
       success: true,
-      complaint: updatedComplaint,
+      complaint: { ...base, ...sla },
     });
   } catch (error) {
     console.error("❌ UPDATE STATUS ERROR:", error.message);

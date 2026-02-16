@@ -59,6 +59,19 @@ const Dashboard = () => {
     resolved: complaints.filter((c) => c.status === "Resolved").length,
   };
 
+  const formatNotificationDate = (dateString) => {
+    if (!dateString) return null;
+    try {
+      return new Date(dateString).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return null;
+    }
+  };
+
   if (loading) {
     return (
       <div className="page-container">
@@ -144,11 +157,34 @@ const Dashboard = () => {
                       <span className="meta-label">Submitted:</span>
                       <span className="meta-value">{formatDate(complaint.createdAt)}</span>
                     </div>
+                    {formatNotificationDate(complaint.lastNotifiedAt) && (
+                      <div className="meta-item">
+                        <span className="meta-label">Notifications:</span>
+                        <span className="meta-value">
+                          Email sent on {formatNotificationDate(complaint.lastNotifiedAt)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           )}
+          <div
+            style={{
+              marginTop: "16px",
+              padding: "10px 12px",
+              backgroundColor: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: "4px",
+              fontSize: "12px",
+              color: "#64748b",
+            }}
+          >
+            <strong>Notification disclaimer:</strong>{" "}
+            Notifications are informational and do not indicate complaint resolution. Notifications are for
+            information only. They do not replace official actions by authorities.
+          </div>
         </div>
       </div>
     </div>
