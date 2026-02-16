@@ -71,6 +71,16 @@ const complaintSchema = new mongoose.Schema(
 
     complaintMonth: Number,
     complaintYear: Number,
+
+    // Notification metadata (minimal, governance-safe)
+    lastNotifiedAt: {
+      type: Date,
+      default: null,
+    },
+    apologySent: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

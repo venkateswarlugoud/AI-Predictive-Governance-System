@@ -748,6 +748,68 @@
   display: inline-block;
 }
 
+/* SLA Status Badges (Advisory Only) */
+.badge-sla-ontrack {
+  background-color: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  border-radius: 0;
+  font-weight: 600;
+  padding: 4px 12px;
+  display: inline-block;
+}
+
+.badge-sla-approaching {
+  background-color: #fef9c3;
+  color: #92400e;
+  border: 1px solid #facc15;
+  border-radius: 0;
+  font-weight: 600;
+  padding: 4px 12px;
+  display: inline-block;
+}
+
+.badge-sla-breached {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  border-radius: 0;
+  font-weight: 600;
+  padding: 4px 12px;
+  display: inline-block;
+}
+
+/* Escalation Indicator Badges (Advisory Only) */
+.badge-escalation-normal {
+  background-color: #e0f2f1;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  border-radius: 0;
+  font-weight: 600;
+  padding: 4px 12px;
+  display: inline-block;
+}
+
+.badge-escalation-attention {
+  background-color: #fef9c3;
+  color: #92400e;
+  border: 1px solid #facc15;
+  border-radius: 0;
+  font-weight: 600;
+  padding: 4px 12px;
+  display: inline-block;
+}
+
+.badge-escalation-high {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  border-radius: 0;
+  font-weight: 600;
+  padding: 4px 12px;
+  display: inline-block;
+}
+
 .empty-state {
   text-align: center;
   padding: 60px 24px;

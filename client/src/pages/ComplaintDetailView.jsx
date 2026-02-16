@@ -15,6 +15,10 @@ const ComplaintDetailView = () => {
   const [analysisError, setAnalysisError] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisTriggered, setAnalysisTriggered] = useState(false);
+
+  // Escalation Indicator (Advisory) State
+  const [escalationInfo, setEscalationInfo] = useState(null);
+  const [escalationError, setEscalationError] = useState(null);
   
   // Collapsible section state
   const [isAdvisoryExpanded, setIsAdvisoryExpanded] = useState(false);
@@ -23,6 +27,8 @@ const ComplaintDetailView = () => {
     setAnalysisTriggered(false);
     setAnalysisResult(null);
     setAnalysisError(null);
+    setEscalationInfo(null);
+    setEscalationError(null);
     setIsAdvisoryExpanded(false);
     fetchComplaint();
   }, [id]);
@@ -47,6 +53,23 @@ const ComplaintDetailView = () => {
         setComplaint(response.data.complaint);
       } else {
         setError("Complaint not found");
+      }
+
+      // Fetch escalation indicator (advisory, read-only)
+      try {
+        const escalationRes = await API.get(`/escalation/by-complaint/${id}`);
+        if (escalationRes.data && escalationRes.data.success) {
+          setEscalationInfo(escalationRes.data);
+        } else {
+          setEscalationInfo(null);
+        }
+      } catch (escError) {
+        console.error("Error fetching escalation indicator:", escError);
+        setEscalationInfo(null);
+        setEscalationError(
+          escError.response?.data?.message ||
+            "Escalation indicator is temporarily unavailable. Officers may proceed with standard review."
+        );
       }
     } catch (err) {
       console.error("Error fetching complaint:", err);
@@ -123,6 +146,29 @@ const ComplaintDetailView = () => {
     return priorityMap[priority] || "badge-priority-low";
   };
 
+  const getEscalationBadgeClass = (level) => {
+    if (level === "High Risk") return "badge-escalation-high";
+    if (level === "Attention Required") return "badge-escalation-attention";
+    return "badge-escalation-normal";
+  };
+
+  const formatRemainingHours = (hours) => {
+    if (hours === null || hours === undefined) return "N/A";
+    if (hours <= 0) return "0 hours";
+    if (hours < 1) {
+      return `${(hours * 60).toFixed(0)} minutes`;
+    }
+    if (hours < 24) {
+      return `${hours.toFixed(1)} hours`;
+    }
+    const days = Math.floor(hours / 24);
+    const remaining = hours % 24;
+    if (days > 0 && remaining >= 1) {
+      return `${days} day${days > 1 ? "s" : ""} ${remaining.toFixed(1)} hours`;
+    }
+    return `${days} day${days > 1 ? "s" : ""}`;
+  };
+
   if (loading) {
     return (
       <div className="page-container">
@@ -165,7 +211,7 @@ const ComplaintDetailView = () => {
         <div className="admin-header">
           <div>
             <h1 className="admin-title">Complaint Review</h1>
-            <p className="admin-subtitle">Review complaint details</p>
+            <p className="admin-subtitle">Review complaint details and advisory indicators</p>
           </div>
           <button onClick={() => navigate("/admin")} className="refresh-btn">
             ← Back to Dashboard
@@ -177,6 +223,69 @@ const ComplaintDetailView = () => {
             {error}
           </div>
         )}
+
+        {/* Escalation Risk (Advisory) */}
+        <div className="admin-section" style={{ marginBottom: "24px" }}>
+          <h3 className="subsection-title" style={{ marginBottom: "12px" }}>
+            Escalation Risk (Advisory)
+          </h3>
+          <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "16px", maxWidth: "760px" }}>
+            Escalation indicators assist officers in identifying risk. They are advisory only and do not change
+            complaint status, assign cases to higher authorities, or send notifications. Final escalation decisions
+            remain with authorized municipal officials.
+          </p>
+
+          {escalationError && (
+            <div className="admin-error-message" style={{ marginBottom: "16px" }}>
+              {escalationError}
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1.8fr)",
+              gap: "20px",
+              alignItems: "flex-start",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>Overall Indicator</div>
+              <div>
+                {escalationInfo ? (
+                  <span
+                    className={`badge ${getEscalationBadgeClass(escalationInfo.escalationLevel)}`}
+                    title="Advisory Indicator — No automatic action."
+                  >
+                    {escalationInfo.escalationLevel || "Normal"}
+                  </span>
+                ) : (
+                  <span className="table-date">Not available</span>
+                )}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>Contributing Factors</div>
+              <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "13px", color: "#334155", lineHeight: 1.6 }}>
+                <li>
+                  <strong>SLA status:</strong>{" "}
+                  {escalationInfo?.slaStatus || complaint.slaStatus || "On Track"}
+                </li>
+                <li>
+                  <strong>Priority level:</strong> {escalationInfo?.priority || complaint.priority || "Medium"}
+                </li>
+                <li>
+                  <strong>Repeat pattern presence:</strong>{" "}
+                  {escalationInfo?.repeatPattern && escalationInfo.repeatPattern.strength !== "None"
+                    ? escalationInfo.repeatPattern.strength === "Strong"
+                      ? "Strong historical repeat pattern for this ward and category"
+                      : "Some historical repeat pattern for this ward and category"
+                    : "No clear historical repeat pattern detected based on resolved complaints"}
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
 
         <div className="admin-section">
           {/* Complaint Details - Primary Section */}
@@ -216,6 +325,24 @@ const ComplaintDetailView = () => {
                     <span className={`badge ${getStatusBadge(complaint.status)}`}>
                       {complaint.status || "New"}
                     </span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>SLA Status (Advisory)</div>
+                  <div style={{ fontSize: "16px", fontWeight: 500, color: "#334155" }}>
+                    {complaint.slaStatus || "N/A"}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>SLA Deadline</div>
+                  <div style={{ fontSize: "16px", fontWeight: 500, color: "#334155" }}>
+                    {complaint.slaDeadline ? formatDate(complaint.slaDeadline) : "N/A"}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Remaining Time</div>
+                  <div style={{ fontSize: "16px", fontWeight: 500, color: "#334155" }}>
+                    {formatRemainingHours(complaint.slaRemainingHours)}
                   </div>
                 </div>
                 <div>

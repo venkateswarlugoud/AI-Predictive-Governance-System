@@ -148,11 +148,34 @@ const MyComplaints = () => {
                       <span className="meta-label">Submitted:</span>
                       <span className="meta-value">{formatDate(complaint.createdAt)}</span>
                     </div>
+                    {complaint.lastNotifiedAt && (
+                      <div className="meta-item">
+                        <span className="meta-label">Notifications:</span>
+                        <span className="meta-value">
+                          Email sent on {formatDate(complaint.lastNotifiedAt)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           )}
+          <div
+            style={{
+              marginTop: "16px",
+              padding: "10px 12px",
+              backgroundColor: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: "4px",
+              fontSize: "12px",
+              color: "#64748b",
+            }}
+          >
+            <strong>Notification disclaimer:</strong>{" "}
+            Notifications are informational and do not indicate complaint resolution. Notifications are for
+            information only. They do not replace official actions by authorities.
+          </div>
         </div>
       </div>
     </div>
