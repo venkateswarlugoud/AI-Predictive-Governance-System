@@ -403,6 +403,7 @@ const AdminDashboard = () => {
       "On Track": "badge-sla-ontrack",
       "Approaching Breach": "badge-sla-approaching",
       Breached: "badge-sla-breached",
+      Closed: "badge-sla-closed",
     };
     return statusMap[status] || "badge-sla-ontrack";
   };
@@ -622,29 +623,24 @@ const AdminDashboard = () => {
   const getEscalationTagClass = (level) => {
     if (level === "High Risk") return "badge-escalation-high";
     if (level === "Attention Required") return "badge-escalation-attention";
+    if (level === "Delayed (Low Impact)") return "badge-escalation-delayed";
     return "badge-escalation-normal";
   };
 
-  const deriveEscalationLevelFromComplaint = (complaint) => {
-    const slaStatus = complaint.slaStatus || "On Track";
-    const priority = complaint.priority || "Medium";
-
-    // Mirror backend deterministic logic in a simplified, client-only way.
-    let levelIndex = 0; // 0 = Normal, 1 = Attention, 2 = High Risk
-
-    if (slaStatus === "Breached") {
-      levelIndex = 2;
-    } else if (slaStatus === "Approaching Breach") {
-      levelIndex = Math.max(levelIndex, 1);
+  /** Prefer backend escalationLevel; fallback when missing (e.g. cached data). */
+  const getEscalationLevelForComplaint = (complaint) => {
+    if (complaint.escalationLevel != null && complaint.escalationLevel !== "") {
+      return complaint.escalationLevel;
     }
-
-    if (priority === "High") {
-      levelIndex = Math.min(2, levelIndex + 1);
-    }
-
-    if (levelIndex <= 0) return "Normal";
-    if (levelIndex === 1) return "Attention Required";
-    return "High Risk";
+    if (complaint.status === "Resolved") return null;
+    const rawSlaStatus = String(complaint.slaStatus || "On Track").trim();
+    if (rawSlaStatus === "Closed" || rawSlaStatus !== "Breached") return null;
+    const priority = complaint.priority ? String(complaint.priority).trim() : "";
+    const p = priority.toLowerCase();
+    if (p !== "high" && p !== "medium" && p !== "low") return null;
+    if (p === "high") return "High Risk";
+    if (p === "medium") return "Attention Required";
+    return "Delayed (Low Impact)";
   };
 
   if (loading) {
@@ -885,12 +881,8 @@ const AdminDashboard = () => {
                     >
                       Status {sortField === "status" && (sortOrder === "asc" ? "↑" : "↓")}
                     </th>
-                    <th>
-                      SLA Status (Advisory)
-                    </th>
-                    <th>
-                      Escalation Indicator (Advisory)
-                    </th>
+                    <th>SLA Status</th>
+                    <th>Escalation</th>
                     <th>Notification Status</th>
                     <th>SLA Apology Email</th>
                     <th>Location</th>
@@ -927,7 +919,7 @@ const AdminDashboard = () => {
                         {complaint.slaStatus ? (
                           <span
                             className={`badge ${getSlaStatusBadge(complaint.slaStatus)}`}
-                            title="SLA Status (Advisory) – No automatic closure or escalation. Final decisions rest with authorized officials."
+                            title="Service time monitoring indicator. Does not enforce action."
                           >
                             {complaint.slaStatus}
                           </span>
@@ -937,11 +929,12 @@ const AdminDashboard = () => {
                       </td>
                       <td style={{ verticalAlign: "middle" }}>
                         {(() => {
-                          const level = deriveEscalationLevelFromComplaint(complaint);
+                          const level = getEscalationLevelForComplaint(complaint);
+                          if (level == null || level === "") return <span className="table-date">—</span>;
                           return (
                             <span
-                              className={`badge ${getEscalationTagClass(level)}`}
-                              title="Advisory Indicator — No automatic action. Escalation decisions remain with authorized officials."
+                              className={`badge badge-escalation-sm ${getEscalationTagClass(level)}`}
+                              title="Governance alert to assist administrators."
                             >
                               {level}
                             </span>
@@ -1392,25 +1385,32 @@ const AdminDashboard = () => {
                     </div>
                   )}
 
-                  {/* Escalation Risk Overview (Advisory) */}
+                  {/* Escalation Overview (governance alerts only when SLA Breached) */}
                   {escalationSummary && (
                     <div style={{ marginBottom: "32px" }}>
                       <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
-                        Escalation Risk Overview
+                        Escalation Overview
                       </h4>
                       <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "16px", maxWidth: "720px" }}>
-                        Escalation indicators assist officers in identifying risk. They are advisory only and do not
-                        trigger automatic status changes, routing, or notifications. Final escalation decisions remain
-                        with authorized officials.
+                        Governance alerts appear only when SLA is breached. They do not override status, change priority, or trigger automation.
                       </p>
                       <div className="admin-stats-grid">
                         <div className="admin-stat-card admin-stat-low">
                           <div className="admin-stat-content">
                             <div className="admin-stat-value">
-                              {formatNumber(escalationSummary.normalCount || 0)}
+                              {formatNumber(escalationSummary.noEscalationCount ?? escalationSummary.normalCount ?? 0)}
                             </div>
-                            <div className="admin-stat-label">Normal</div>
-                            <div className="admin-stat-sublabel">No immediate escalation risk</div>
+                            <div className="admin-stat-label">No alert</div>
+                            <div className="admin-stat-sublabel">On track or closed</div>
+                          </div>
+                        </div>
+                        <div className="admin-stat-card admin-stat-low">
+                          <div className="admin-stat-content">
+                            <div className="admin-stat-value">
+                              {formatNumber(escalationSummary.delayedLowImpactCount || 0)}
+                            </div>
+                            <div className="admin-stat-label">Delayed (Low Impact)</div>
+                            <div className="admin-stat-sublabel">Breached, low priority</div>
                           </div>
                         </div>
                         <div className="admin-stat-card admin-stat-medium">
@@ -1419,7 +1419,7 @@ const AdminDashboard = () => {
                               {formatNumber(escalationSummary.attentionRequiredCount || 0)}
                             </div>
                             <div className="admin-stat-label">Attention Required</div>
-                            <div className="admin-stat-sublabel">Officer review recommended</div>
+                            <div className="admin-stat-sublabel">Breached, medium priority</div>
                           </div>
                         </div>
                         <div className="admin-stat-card admin-stat-high">
@@ -1428,7 +1428,7 @@ const AdminDashboard = () => {
                               {formatNumber(escalationSummary.highRiskCount || 0)}
                             </div>
                             <div className="admin-stat-label">High Risk</div>
-                            <div className="admin-stat-sublabel">Strong risk indicators present</div>
+                            <div className="admin-stat-sublabel">Breached, high priority</div>
                           </div>
                         </div>
                         <div className="admin-stat-card">
@@ -1436,10 +1436,8 @@ const AdminDashboard = () => {
                             <div className="admin-stat-value">
                               {formatNumber(escalationSummary.totalMonitored || 0)}
                             </div>
-                            <div className="admin-stat-label">Complaints Monitored for Escalation</div>
-                            <div className="admin-stat-sublabel">
-                              Active complaints only; advisory monitoring
-                            </div>
+                            <div className="admin-stat-label">Active complaints monitored</div>
+                            <div className="admin-stat-sublabel">Advisory only</div>
                           </div>
                         </div>
                       </div>
