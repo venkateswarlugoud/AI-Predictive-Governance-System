@@ -2,6 +2,7 @@ import Complaint from "../models/Complaint.js";
 import { predictComplaint } from "../services/aiService.js";
 import { evaluateConfidence } from "../services/confidenceGovernance.js";
 import { computeSlaForComplaint } from "../services/slaService.js";
+import { deriveEscalationLevel } from "../services/escalationService.js";
 import User from "../models/User.js";
 import {
   NOTIFICATION_TYPES,
@@ -223,13 +224,19 @@ export const getAllComplaints = async (req, res) => {
   try {
     const complaints = await Complaint.find().sort({ createdAt: -1 });
 
-    // Attach SLA advisory fields (read-only, not persisted)
+    // Attach SLA and escalation (read-only, not persisted)
     const complaintsWithSla = complaints.map((complaint) => {
       const base = complaint.toObject ? complaint.toObject() : complaint;
       const sla = computeSlaForComplaint(base);
+      const escalationLevel = deriveEscalationLevel({
+        complaintStatus: base.status,
+        slaStatus: sla.slaStatus,
+        priority: base.priority,
+      });
       return {
         ...base,
         ...sla,
+        escalationLevel,
       };
     });
 
@@ -261,13 +268,19 @@ export const getMyComplaints = async (req, res) => {
       user: req.user._id,
     }).sort({ createdAt: -1 });
 
-    // Attach SLA advisory fields for citizen view as well (read-only)
+    // Attach SLA and escalation for citizen view (read-only)
     const complaintsWithSla = complaints.map((complaint) => {
       const base = complaint.toObject ? complaint.toObject() : complaint;
       const sla = computeSlaForComplaint(base);
+      const escalationLevel = deriveEscalationLevel({
+        complaintStatus: base.status,
+        slaStatus: sla.slaStatus,
+        priority: base.priority,
+      });
       return {
         ...base,
         ...sla,
+        escalationLevel,
       };
     });
 
@@ -306,12 +319,18 @@ export const getComplaintById = async (req, res) => {
     }
     const base = complaint.toObject ? complaint.toObject() : complaint;
     const sla = computeSlaForComplaint(base);
+    const escalationLevel = deriveEscalationLevel({
+      complaintStatus: base.status,
+      slaStatus: sla.slaStatus,
+      priority: base.priority,
+    });
 
     return res.json({
       success: true,
       complaint: {
         ...base,
         ...sla,
+        escalationLevel,
       },
     });
   } catch (error) {
@@ -409,10 +428,15 @@ export const updateComplaintStatus = async (req, res) => {
     const complaintToReturn = await Complaint.findById(updatedComplaint._id);
     const base = complaintToReturn.toObject ? complaintToReturn.toObject() : complaintToReturn;
     const sla = computeSlaForComplaint(base);
+    const escalationLevel = deriveEscalationLevel({
+      complaintStatus: base.status,
+      slaStatus: sla.slaStatus,
+      priority: base.priority,
+    });
 
     return res.json({
       success: true,
-      complaint: { ...base, ...sla },
+      complaint: { ...base, ...sla, escalationLevel },
     });
   } catch (error) {
     console.error("❌ UPDATE STATUS ERROR:", error.message);

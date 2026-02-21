@@ -8,21 +8,23 @@
  * - Final escalation decisions remain with authorized municipal officials.
  */
 
+/** Escalation appears only when SLA is Breached; otherwise null (no "Normal"). */
 export const ESCALATION_LEVELS = {
-  NORMAL: "Normal",
-  ATTENTION: "Attention Required",
   HIGH_RISK: "High Risk",
+  ATTENTION: "Attention Required",
+  DELAYED_LOW_IMPACT: "Delayed (Low Impact)",
 };
 
 /**
  * Normalize SLA status coming from the SLA service.
  *
  * @param {string | null | undefined} slaStatus
- * @returns {"On Track" | "Approaching Breach" | "Breached"}
+ * @returns {"On Track" | "Approaching Breach" | "Breached" | "Closed"}
  */
 export const normalizeSlaStatus = (slaStatus) => {
   if (slaStatus === "Breached") return "Breached";
   if (slaStatus === "Approaching Breach") return "Approaching Breach";
+  if (slaStatus === "Closed") return "Closed";
   return "On Track";
 };
 
@@ -48,68 +50,52 @@ export const deriveRepeatStrength = (repeatCount = 0) => {
 };
 
 /**
- * Deterministically derive escalation level from SLA, priority, and repeat strength.
+ * Derive escalation level only when SLA is Breached.
+ * Governance signal: does not duplicate priority wording.
  *
- * Signals used:
- * - SLA Status:
- *   - Breached → baseline High Risk
- *   - Approaching Breach → at least Attention Required
- * - Repeat Pattern:
- *   - Strong → increase risk level by one step
- *   - Moderate → at least Attention Required
- * - Priority:
- *   - High → increase risk level by one step
- *
- * All adjustments are capped at "High Risk" and never downgrade
- * a higher level once reached in this computation.
+ * - If complaint is Resolved or SLA is not Breached → return null (no indicator).
+ * - If SLA === "Breached":
+ *   - High priority   → "High Risk"
+ *   - Medium priority → "Attention Required"
+ *   - Low priority    → "Delayed (Low Impact)"
  *
  * @param {Object} params
- * @param {"On Track" | "Approaching Breach" | "Breached"} params.slaStatus
+ * @param {string} [params.complaintStatus] - If "Resolved", escalation is always null.
+ * @param {"On Track" | "Approaching Breach" | "Breached" | "Closed"} params.slaStatus
  * @param {"Low" | "Medium" | "High" | string | undefined} params.priority
- * @param {"Strong" | "Moderate" | "None"} params.repeatStrength
- * @returns {("Normal" | "Attention Required" | "High Risk")}
+ * @returns {("High Risk" | "Attention Required" | "Delayed (Low Impact)" | null)}
  */
-export const deriveEscalationLevel = ({ slaStatus, priority, repeatStrength }) => {
+/** Normalize priority to schema enum (case-insensitive). */
+const normalizePriority = (p) => {
+  if (p == null || typeof p !== "string") return "Medium";
+  const s = p.trim();
+  if (s.toLowerCase() === "high") return "High";
+  if (s.toLowerCase() === "low") return "Low";
+  if (s.toLowerCase() === "medium") return "Medium";
+  return "Medium";
+};
+
+export const deriveEscalationLevel = ({ complaintStatus, slaStatus, priority }) => {
+  if (complaintStatus === "Resolved") {
+    return null;
+  }
+
   const normalizedSla = normalizeSlaStatus(slaStatus);
-  const normalizedPriority = priority === "High" || priority === "Low" || priority === "Medium"
-    ? priority
-    : "Medium";
-
-  // 0 = Normal, 1 = Attention Required, 2 = High Risk
-  let levelIndex = 0;
-
-  // SLA is the primary driver
-  if (normalizedSla === "Breached") {
-    levelIndex = 2;
-  } else if (normalizedSla === "Approaching Breach") {
-    levelIndex = Math.max(levelIndex, 1);
+  if (normalizedSla !== "Breached") {
+    return null;
   }
 
-  // Repeat pattern as structural signal
-  if (repeatStrength === "Strong") {
-    levelIndex = Math.min(2, levelIndex + 1);
-  } else if (repeatStrength === "Moderate") {
-    levelIndex = Math.max(levelIndex, 1);
-  }
-
-  // Priority as case-level signal
-  if (normalizedPriority === "High") {
-    levelIndex = Math.min(2, levelIndex + 1);
-  }
-
-  if (levelIndex <= 0) return ESCALATION_LEVELS.NORMAL;
-  if (levelIndex === 1) return ESCALATION_LEVELS.ATTENTION;
-  return ESCALATION_LEVELS.HIGH_RISK;
+  const p = normalizePriority(priority);
+  if (p === "High") return ESCALATION_LEVELS.HIGH_RISK;
+  if (p === "Medium") return ESCALATION_LEVELS.ATTENTION;
+  return ESCALATION_LEVELS.DELAYED_LOW_IMPACT;
 };
 
 /**
  * Build a human-readable list of contributing factors.
  *
- * NOTE: This is presentational metadata only and does not
- *       trigger any automatic decision-making.
- *
  * @param {Object} params
- * @param {"On Track" | "Approaching Breach" | "Breached"} params.slaStatus
+ * @param {"On Track" | "Approaching Breach" | "Breached" | "Closed"} params.slaStatus
  * @param {"Low" | "Medium" | "High"} params.priority
  * @param {"Strong" | "Moderate" | "None"} params.repeatStrength
  * @returns {Array<string>}
@@ -119,6 +105,8 @@ export const deriveContributingFactors = ({ slaStatus, priority, repeatStrength 
 
   if (slaStatus === "Breached") {
     factors.push("SLA status: Breached");
+  } else if (slaStatus === "Closed") {
+    factors.push("SLA status: Closed");
   } else if (slaStatus === "Approaching Breach") {
     factors.push("SLA status: Approaching Breach");
   } else {
@@ -145,24 +133,19 @@ export const deriveContributingFactors = ({ slaStatus, priority, repeatStrength 
 };
 
 /**
- * Compute the full escalation indicator payload for a single complaint,
- * given pre-computed SLA and repeat-pattern signals.
- *
- * This function is deterministic and does not perform any I/O.
+ * Compute the full escalation indicator payload for a single complaint.
+ * Escalation level is null when SLA is On Track or complaint is Resolved (no indicator shown).
  *
  * @param {Object} params
- * @param {Object} params.complaint - Plain object (not a Mongoose document)
+ * @param {Object} params.complaint - Plain object with status, priority
  * @param {{ slaStatus: string }} params.sla
  * @param {{ repeatCount: number }} params.repeatInfo
  * @returns {{
  *   complaintId: string,
- *   escalationLevel: string,
+ *   escalationLevel: string | null,
  *   slaStatus: string,
  *   priority: string,
- *   repeatPattern: {
- *     repeatCount: number,
- *     strength: string
- *   },
+ *   repeatPattern: { repeatCount: number, strength: string },
  *   contributingFactors: string[],
  *   advisoryLabel: string,
  *   governanceNote: string
@@ -176,9 +159,9 @@ export const buildEscalationIndicatorForComplaint = ({ complaint, sla, repeatInf
   const repeatStrength = deriveRepeatStrength(repeatCount);
 
   const escalationLevel = deriveEscalationLevel({
+    complaintStatus: base.status,
     slaStatus,
     priority,
-    repeatStrength,
   });
 
   const contributingFactors = deriveContributingFactors({
@@ -187,9 +170,9 @@ export const buildEscalationIndicatorForComplaint = ({ complaint, sla, repeatInf
     repeatStrength,
   });
 
-  const advisoryLabel = "Advisory Indicator — No Automatic Action";
+  const advisoryLabel = "Governance alert to assist administrators.";
   const governanceNote =
-    "Escalation indicators assist officers in identifying risk. Final escalation decisions remain with authorized officials.";
+    "Escalation does not override status, change priority, or trigger automation. Final decisions remain with authorized officials.";
 
   return {
     complaintId: String(base._id || ""),

@@ -149,6 +149,7 @@ const ComplaintDetailView = () => {
   const getEscalationBadgeClass = (level) => {
     if (level === "High Risk") return "badge-escalation-high";
     if (level === "Attention Required") return "badge-escalation-attention";
+    if (level === "Delayed (Low Impact)") return "badge-escalation-delayed";
     return "badge-escalation-normal";
   };
 
@@ -224,15 +225,13 @@ const ComplaintDetailView = () => {
           </div>
         )}
 
-        {/* Escalation Risk (Advisory) */}
+        {/* Escalation (governance alert only when SLA Breached) */}
         <div className="admin-section" style={{ marginBottom: "24px" }}>
           <h3 className="subsection-title" style={{ marginBottom: "12px" }}>
-            Escalation Risk (Advisory)
+            Escalation
           </h3>
           <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "16px", maxWidth: "760px" }}>
-            Escalation indicators assist officers in identifying risk. They are advisory only and do not change
-            complaint status, assign cases to higher authorities, or send notifications. Final escalation decisions
-            remain with authorized municipal officials.
+            Governance alert to assist administrators. Shown only when SLA is breached. Does not override status, change priority, or trigger automation.
           </p>
 
           {escalationError && (
@@ -250,17 +249,17 @@ const ComplaintDetailView = () => {
             }}
           >
             <div>
-              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>Overall Indicator</div>
+              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>Indicator</div>
               <div>
-                {escalationInfo ? (
+                {escalationInfo?.escalationLevel != null ? (
                   <span
-                    className={`badge ${getEscalationBadgeClass(escalationInfo.escalationLevel)}`}
-                    title="Advisory Indicator — No automatic action."
+                    className={`badge badge-escalation-sm ${getEscalationBadgeClass(escalationInfo.escalationLevel)}`}
+                    title="Governance alert to assist administrators."
                   >
-                    {escalationInfo.escalationLevel || "Normal"}
+                    {escalationInfo.escalationLevel}
                   </span>
                 ) : (
-                  <span className="table-date">Not available</span>
+                  <span className="table-date">No governance alert</span>
                 )}
               </div>
             </div>
@@ -269,18 +268,18 @@ const ComplaintDetailView = () => {
               <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "13px", color: "#334155", lineHeight: 1.6 }}>
                 <li>
                   <strong>SLA status:</strong>{" "}
-                  {escalationInfo?.slaStatus || complaint.slaStatus || "On Track"}
+                  {escalationInfo?.slaStatus ?? complaint.slaStatus ?? "On Track"}
                 </li>
                 <li>
-                  <strong>Priority level:</strong> {escalationInfo?.priority || complaint.priority || "Medium"}
+                  <strong>Priority:</strong> {escalationInfo?.priority ?? complaint.priority ?? "Medium"}
                 </li>
                 <li>
-                  <strong>Repeat pattern presence:</strong>{" "}
+                  <strong>Repeat pattern:</strong>{" "}
                   {escalationInfo?.repeatPattern && escalationInfo.repeatPattern.strength !== "None"
                     ? escalationInfo.repeatPattern.strength === "Strong"
                       ? "Strong historical repeat pattern for this ward and category"
                       : "Some historical repeat pattern for this ward and category"
-                    : "No clear historical repeat pattern detected based on resolved complaints"}
+                    : "No clear historical repeat pattern detected"}
                 </li>
               </ul>
             </div>

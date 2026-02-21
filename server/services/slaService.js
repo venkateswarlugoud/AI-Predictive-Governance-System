@@ -45,6 +45,15 @@ export const computeSlaForComplaint = (complaint, now = new Date()) => {
     };
   }
 
+  // Resolved complaints: display as Closed; do not compute breach.
+  if (complaint.status === "Resolved") {
+    return {
+      slaDeadline: null,
+      slaRemainingHours: null,
+      slaStatus: "Closed",
+    };
+  }
+
   const slaHours = getSlaHoursForPriority(complaint.priority);
 
   const createdAt = complaint.createdAt ? new Date(complaint.createdAt) : null;
@@ -107,6 +116,9 @@ export const computeSlaSummary = (complaints = []) => {
       breachedCount += 1;
     } else if (slaStatus === "Approaching Breach") {
       approachingBreachCount += 1;
+    } else if (slaStatus === "Closed") {
+      // Resolved complaints; not counted in active SLA monitoring
+      onTrackCount += 1;
     } else {
       onTrackCount += 1;
     }

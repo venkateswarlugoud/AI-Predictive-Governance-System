@@ -3,7 +3,6 @@ import { computeSlaForComplaint } from "../services/slaService.js";
 import {
   buildEscalationIndicatorForComplaint,
   deriveEscalationLevel,
-  deriveRepeatStrength,
   ESCALATION_LEVELS,
   normalizeSlaStatus,
 } from "../services/escalationService.js";
@@ -89,52 +88,16 @@ export const getEscalationByComplaintId = async (req, res) => {
  */
 export const getEscalationSummary = async (req, res) => {
   try {
-    // Focus on active complaints where escalation attention is most relevant
+    // Focus on active complaints (Resolved excluded; escalation only when SLA Breached)
     const activeComplaints = await Complaint.find({
       status: { $ne: "Resolved" },
     }).select("_id priority status createdAt ward category");
 
-    // Build a ward+category → repeatCount map using the same repeat definition
-    const repeatBuckets = await Complaint.aggregate([
-      {
-        $match: {
-          status: "Resolved",
-          complaintMonth: { $ne: null },
-          complaintYear: { $ne: null },
-        },
-      },
-      {
-        $group: {
-          _id: { ward: "$ward", category: "$category" },
-          totalComplaints: { $sum: 1 },
-        },
-      },
-      {
-        $project: {
-          key: {
-            $concat: ["$_id.ward", "||", "$_id.category"],
-          },
-          repeats: {
-            $cond: [
-              { $gt: ["$totalComplaints", 1] },
-              { $subtract: ["$totalComplaints", 1] },
-              0,
-            ],
-          },
-        },
-      },
-    ]);
-
-    const repeatMap = new Map();
-    repeatBuckets.forEach((row) => {
-      if (row && typeof row.key === "string") {
-        repeatMap.set(row.key, row.repeats || 0);
-      }
-    });
-
     let normalCount = 0;
     let attentionRequiredCount = 0;
     let highRiskCount = 0;
+
+    let delayedLowImpactCount = 0;
 
     activeComplaints.forEach((doc) => {
       const base = doc.toObject ? doc.toObject() : doc;
@@ -142,20 +105,18 @@ export const getEscalationSummary = async (req, res) => {
       const slaStatus = normalizeSlaStatus(sla?.slaStatus);
       const priority = base.priority || "Medium";
 
-      const key = `${base.ward}||${base.category}`;
-      const repeatCount = repeatMap.has(key) ? repeatMap.get(key) : 0;
-      const repeatStrength = deriveRepeatStrength(repeatCount);
-
       const level = deriveEscalationLevel({
+        complaintStatus: base.status,
         slaStatus,
         priority,
-        repeatStrength,
       });
 
       if (level === ESCALATION_LEVELS.HIGH_RISK) {
         highRiskCount += 1;
       } else if (level === ESCALATION_LEVELS.ATTENTION) {
         attentionRequiredCount += 1;
+      } else if (level === ESCALATION_LEVELS.DELAYED_LOW_IMPACT) {
+        delayedLowImpactCount += 1;
       } else {
         normalCount += 1;
       }
@@ -166,13 +127,14 @@ export const getEscalationSummary = async (req, res) => {
     return res.status(200).json({
       success: true,
       totalMonitored,
-      normalCount,
+      noEscalationCount: normalCount,
+      delayedLowImpactCount,
       attentionRequiredCount,
       highRiskCount,
       generatedAt: new Date().toISOString(),
-      advisoryLabel: "Advisory Indicator — No Automatic Action",
+      advisoryLabel: "Governance alert to assist administrators.",
       governanceNote:
-        "Escalation indicators assist officers in identifying risk. Final escalation decisions remain with authorized officials.",
+        "Escalation does not override status, change priority, or trigger automation. Final decisions remain with authorized officials.",
     });
   } catch (error) {
     console.error("❌ ESCALATION SUMMARY ERROR:", error.message);
