@@ -5,6 +5,12 @@ import numpy as np
 import joblib
 import os
 import sys
+import warnings
+import logging
+
+# Suppress transformers warnings about unexpected keys during model loading
+logging.getLogger("transformers.modeling_utils").setLevel(logging.ERROR)
+warnings.filterwarnings("ignore", message=".*UNEXPECTED.*")
 
 # Add scripts directory to path to import modules
 scripts_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts")
@@ -31,8 +37,12 @@ if os.path.exists(train_model_path):
 
 app = FastAPI(title="Municipal AI Service")
 
-# Load embedding model
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+# Load embedding model (suppress warnings about unexpected keys)
+print("Loading embedding model: all-MiniLM-L6-v2")
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+print("[OK] Embedding model loaded")
 
 # Load category and priority models
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

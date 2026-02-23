@@ -12,6 +12,12 @@ from sentence_transformers import SentenceTransformer
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import LabelEncoder
 import numpy as np
+import warnings
+import logging
+
+# Suppress transformers warnings about unexpected keys during model loading
+logging.getLogger("transformers.modeling_utils").setLevel(logging.ERROR)
+warnings.filterwarnings("ignore", message=".*UNEXPECTED.*")
 
 # Add scripts directory to path to import text_normalizer
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -182,9 +188,11 @@ def main():
     # Load data
     df = load_data()
     
-    # Initialize sentence transformer
+    # Initialize sentence transformer (suppress warnings about unexpected keys)
     print(f"\nLoading embedding model: {EMBEDDING_MODEL_NAME}")
-    embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
     print("  [OK] Embedding model loaded")
     
     # Extract features and labels
