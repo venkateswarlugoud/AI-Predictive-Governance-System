@@ -38,7 +38,10 @@ categories = {
             ("Road collapsed", "Road collapsed near {place} causing danger to vehicles"),
             ("Bridge damaged", "Bridge damaged near {place} requires immediate attention"),
             ("Road flooded blocking traffic", "Road flooded near {place} blocking traffic completely"),
-            ("Deep pit on road", "Deep pit on road near {place} causing vehicle damage")
+            ("Deep pit on road", "Deep pit on road near {place} causing vehicle damage"),
+            # Explicit severe road damage with casualties for stronger learning
+            ("Severe road damage causing deaths", "Severe road damage near {place} causing accidents and deaths needs immediate repair"),
+            ("Severe road damage near school", "Severe road damage near {place} putting school children at risk of serious accidents and death")
         ],
         "medium": [
             ("Uneven road", "Uneven road slowing traffic near {place} needs leveling"),
@@ -140,7 +143,9 @@ places = [
 
 rows = []
 
-TARGET_PER_CATEGORY = 1000  # 4 categories → ~4000 rows
+# Increase target so overall dataset is ~10k+ complaints
+# (clean + noisy + negative contrast samples).
+TARGET_PER_CATEGORY = 2000  # 4 categories → ~11.5k rows
 
 # Generate regular samples with title + description
 clean_samples = []
@@ -186,8 +191,9 @@ for _ in range(num_negative):
     combined_text = f"{title}. {description}"
     # Normalize the text
     normalized_text = normalize_text(combined_text)
-    # Assign priority randomly for negative samples
-    priority = random.choice(["High", "Medium", "Low"])
+    # IMPORTANT: keep priority labels consistent for these edge cases
+    # to avoid confusing the model. We treat them all as Medium severity.
+    priority = "Medium"
     rows.append([title, description, normalized_text, correct_category, priority])
 
 random.shuffle(rows)

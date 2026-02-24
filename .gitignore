@@ -96,3 +96,28 @@ lerna-debug.log*
 ARCHITECTURE_GUIDE.md
 GOVERNANCE_IMPLEMENTATION.md
 POSTMAN_TESTING_GUIDE.md
+
+# =====================
+# ML MODELS & TRAINING ARTIFACTS
+# =====================
+
+# Old sklearn / pickle models
+ai/model/
+*.pkl
+
+# Training checkpoints
+*/checkpoint-*/
+training_args.bin
+optimizer.pt
+scheduler.pt
+rng_state.pth
+trainer_state.json
+
+# Archive experiments
+ai/models/archive/
+ai/models/complaint_model_v2/
+
+ai/data/
+ai/complaints.csv
+# Trained transformer models (hosted externally)
+ai/models/
