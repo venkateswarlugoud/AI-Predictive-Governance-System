@@ -2,105 +2,97 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 import numpy as np
-import joblib
 import os
 import sys
+import json
 import warnings
 import logging
+
+import torch
+from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
 
 # Suppress transformers warnings about unexpected keys during model loading
 logging.getLogger("transformers.modeling_utils").setLevel(logging.ERROR)
 warnings.filterwarnings("ignore", message=".*UNEXPECTED.*")
 
-# Add scripts directory to path to import modules
-scripts_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts")
-sys.path.insert(0, scripts_dir)
-from text_normalizer import normalize_for_inference
-
-# Import SemanticClassifier from shared module so joblib can unpickle
-# This ensures the class is available in the correct module namespace
-from semantic_classifier import SemanticClassifier
-# Register it in sys.modules so joblib can find it
-import semantic_classifier
-sys.modules['semantic_classifier'] = semantic_classifier
-
-# Also register for old model format (if model was saved with train_model.SemanticClassifier)
-# We'll create an alias in train_model namespace
-import importlib.util
-train_model_path = os.path.join(scripts_dir, "train_model.py")
-if os.path.exists(train_model_path):
-    spec = importlib.util.spec_from_file_location("train_model", train_model_path)
-    train_model_module = importlib.util.module_from_spec(spec)
-    sys.modules["train_model"] = train_model_module
-    # Add SemanticClassifier to train_model namespace for backward compatibility
-    train_model_module.SemanticClassifier = SemanticClassifier
-
 app = FastAPI(title="Municipal AI Service")
 
-# Load embedding model (suppress warnings about unexpected keys)
+# Base directory for models (ai/)
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+CATEGORY_MODEL_DIR = os.path.join(BASE_DIR, "models", "complaint_category_model")
+PRIORITY_MODEL_DIR = os.path.join(BASE_DIR, "models", "complaint_priority_model")
+from ai.scripts.download_models import ensure_models
+ensure_models()
+
+# Label mapping (4 categories, 3 priorities)
+CATEGORY_LABELS = ["Sanitation", "Roads", "Electricity", "Water"]
+PRIORITY_LABELS = ["Low", "Medium", "High"]
+
+# Max sequence length used during training
+MAX_LENGTH = 64
+model_version = "v3.0"
+
+
+# ---------------------------------------------------------------------------
+# Load embedding model (for /embed and /similarity)
+# ---------------------------------------------------------------------------
 print("Loading embedding model: all-MiniLM-L6-v2")
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 print("[OK] Embedding model loaded")
 
-# Load category and priority models
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODEL_DIR = os.path.join(BASE_DIR, "model")
-
+# ---------------------------------------------------------------------------
+# Load transformer complaint models at startup (CPU only)
+# ---------------------------------------------------------------------------
+tokenizer = None
 category_model = None
 priority_model = None
 
 try:
-    category_model_path = os.path.join(MODEL_DIR, "category_model.pkl")
-    if os.path.exists(category_model_path):
-        print(f"Attempting to load category model from: {category_model_path}")
-        category_model = joblib.load(category_model_path)
-        print(f"[OK] Loaded category model: {category_model_path}")
-        if hasattr(category_model, 'model_version'):
-            print(f"  Model version: {category_model.model_version}")
-        if hasattr(category_model, 'predict_proba'):
-            print(f"  Model has predict_proba method: OK")
-        else:
-            print(f"  ERROR: Model missing predict_proba method!")
-    else:
-        print(f"⚠ Warning: Category model file not found at: {category_model_path}")
-except Exception as e:
-    import traceback
-    print(f"⚠ ERROR: Could not load category model: {e}")
-    print(f"Full traceback:")
-    traceback.print_exc()
-    category_model = None
+    tokenizer = DistilBertTokenizerFast.from_pretrained(CATEGORY_MODEL_DIR)
 
-try:
-    priority_model_path = os.path.join(MODEL_DIR, "priority_model.pkl")
-    if os.path.exists(priority_model_path):
-        priority_model = joblib.load(priority_model_path)
-        print(f"[OK] Loaded priority model: {priority_model_path}")
+    category_model = DistilBertForSequenceClassification.from_pretrained(
+        CATEGORY_MODEL_DIR
+    )
+
+    priority_model = DistilBertForSequenceClassification.from_pretrained(
+        PRIORITY_MODEL_DIR
+    )
+
+    category_model.eval()
+    priority_model.eval()
+
+    print("Category and Priority models loaded successfully")
+
 except Exception as e:
-    print(f"⚠ Warning: Could not load priority model: {e}")
+    print(f"ERROR loading models: {e}")
+
 
 class EmbedRequest(BaseModel):
     text: str
+
 
 class SimilarityRequest(BaseModel):
     text1: str
     text2: str
 
+
 def cosine(a, b):
     return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+
 
 @app.post("/embed")
 def embed(req: EmbedRequest):
     vec = embedding_model.encode(req.text).tolist()
     return {"embedding": vec}
 
+
 @app.post("/similarity")
 def similarity(req: SimilarityRequest):
     v1 = embedding_model.encode(req.text1)
     v2 = embedding_model.encode(req.text2)
     score = cosine(v1, v2)
-
     return {
         "similarityScore": round(score, 3),
         "level": (
@@ -118,68 +110,72 @@ class ComplaintRequest(BaseModel):
 @app.post("/predict")
 def predict_complaint(data: ComplaintRequest):
     """
-    Predict category and priority for a complaint.
-    Returns "Uncertain" category if confidence < 0.65.
-    Text is normalized for robustness (handles typos, informal English).
+    Predict category and priority using the transformer models
+    (separate DistilBERT classifiers, 4 categories, 3 priorities).
     """
-    # Normalize input text for robustness
-    text = normalize_for_inference(data.text)
-    
-    result = {
-        "decision": "AI_PREDICTED"
+    if tokenizer is None or category_model is None or priority_model is None:
+        return {
+            "decision": "AI_UNAVAILABLE",
+            "category": "Uncertain",
+            "categoryConfidence": 0.0,
+            "priority": "Medium",
+            "priorityConfidence": 0.0,
+            "error": "Transformer models not loaded",
+        }
+
+    # Combine and normalize text exactly like training: lowercased
+    text = (data.text or "").strip()
+    text = text.lower()
+
+    # Tokenize with same max_length as training
+    encoded = tokenizer(
+        text,
+        truncation=True,
+        padding="max_length",
+        max_length=MAX_LENGTH,
+        return_tensors="pt",
+    )
+    input_ids = encoded["input_ids"]
+    attention_mask = encoded["attention_mask"]
+
+    # Forward pass (CPU, no grad)
+    with torch.no_grad():
+        cat_outputs = category_model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+        )
+
+        pri_outputs = priority_model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+        )
+
+    cat_logits = cat_outputs.logits
+    pri_logits = pri_outputs.logits
+
+    # Predictions from logits
+    category_id = torch.argmax(cat_logits, dim=1).item()
+    priority_id = torch.argmax(pri_logits, dim=1).item()
+
+    # Softmax for confidence and per-class probs
+    cat_probs = torch.softmax(cat_logits, dim=-1).squeeze(0).cpu().numpy()
+    pri_probs = torch.softmax(pri_logits, dim=-1).squeeze(0).cpu().numpy()
+
+    category = CATEGORY_LABELS[category_id]
+    priority = PRIORITY_LABELS[priority_id]
+    category_confidence = float(cat_probs[category_id])
+    priority_confidence = float(pri_probs[priority_id])
+
+    category_probs = {CATEGORY_LABELS[i]: round(float(cat_probs[i]), 4) for i in range(len(CATEGORY_LABELS))}
+    priority_probs = {PRIORITY_LABELS[i]: round(float(pri_probs[i]), 4) for i in range(len(PRIORITY_LABELS))}
+
+    return {
+        "decision": "AI_PREDICTED_V2",
+        "category": category,
+        "categoryConfidence": round(category_confidence, 3),
+        "priority": priority,
+        "priorityConfidence": round(priority_confidence, 3),
+        "categoryProbs": category_probs,
+        "priorityProbs": priority_probs,
+        "model_version": model_version,
     }
-    
-    # Extract model version if available
-    model_version = None
-    if category_model and hasattr(category_model, 'model_version'):
-        model_version = category_model.model_version
-    elif priority_model and hasattr(priority_model, 'model_version'):
-        model_version = priority_model.model_version
-    
-    # ---------------- CATEGORY PREDICTION ----------------
-    if category_model is None:
-        result["category"] = "Uncertain"
-        result["categoryConfidence"] = 0.0
-        result["error"] = "Category model not loaded"
-    else:
-        try:
-            # Note: category_model.predict_proba already normalizes internally,
-            # but we normalize here too for consistency and in case model doesn't
-            category_probs = category_model.predict_proba([text])[0]
-            cat_index = int(np.argmax(category_probs))
-            category_confidence = float(category_probs[cat_index])
-            
-            # If confidence < 0.65, return "Uncertain"
-            if category_confidence < 0.65:
-                result["category"] = "Uncertain"
-                result["categoryConfidence"] = round(category_confidence, 3)
-            else:
-                category = category_model.classes_[cat_index]
-                result["category"] = category
-                result["categoryConfidence"] = round(category_confidence, 3)
-        except Exception as e:
-            result["category"] = "Uncertain"
-            result["categoryConfidence"] = 0.0
-            result["error"] = f"Prediction error: {str(e)}"
-    
-    # ---------------- PRIORITY PREDICTION ----------------
-    if priority_model is None:
-        result["priority"] = "Medium"  # Default fallback
-        result["priorityConfidence"] = 0.0
-    else:
-        try:
-            priority_probs = priority_model.predict_proba([text])[0]
-            pri_index = int(np.argmax(priority_probs))
-            priority = priority_model.classes_[pri_index]
-            priority_confidence = float(priority_probs[pri_index])
-            result["priority"] = priority
-            result["priorityConfidence"] = round(priority_confidence, 3)
-        except Exception as e:
-            result["priority"] = "Medium"
-            result["priorityConfidence"] = 0.0
-    
-    # Add model version to response for governance tracking
-    if model_version:
-        result["model_version"] = model_version
-    
-    return result
