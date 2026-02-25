@@ -9,8 +9,7 @@ import warnings
 import logging
 
 import torch
-from torch import nn
-from transformers import DistilBertTokenizerFast, DistilBertModel
+from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
 
 # Suppress transformers warnings about unexpected keys during model loading
 logging.getLogger("transformers.modeling_utils").setLevel(logging.ERROR)
@@ -20,35 +19,18 @@ app = FastAPI(title="Municipal AI Service")
 
 # Base directory for models (ai/)
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-MODEL_DIR = os.path.join(BASE_DIR, "models", "complaint_model_v2")
+CATEGORY_MODEL_DIR = os.path.join(BASE_DIR, "models", "complaint_category_model")
+PRIORITY_MODEL_DIR = os.path.join(BASE_DIR, "models", "complaint_priority_model")
+from ai.scripts.download_models import ensure_models
+ensure_models()
 
-# Label mapping from transformer config (4 categories, 3 priorities)
+# Label mapping (4 categories, 3 priorities)
 CATEGORY_LABELS = ["Sanitation", "Roads", "Electricity", "Water"]
 PRIORITY_LABELS = ["Low", "Medium", "High"]
 
 # Max sequence length used during training
 MAX_LENGTH = 64
-
-
-class ComplaintClassifierV2(nn.Module):
-    """DistilBERT-based multi-head classifier (category + priority)."""
-
-    def __init__(self, base_model_name: str, num_categories: int, num_priorities: int):
-        super().__init__()
-        self.encoder = DistilBertModel.from_pretrained(base_model_name)
-        hidden_size = self.encoder.config.hidden_size
-        dropout_prob = getattr(self.encoder.config, "seq_classif_dropout", 0.2)
-        self.dropout = nn.Dropout(dropout_prob)
-        self.category_classifier = nn.Linear(hidden_size, num_categories)
-        self.priority_classifier = nn.Linear(hidden_size, num_priorities)
-
-    def forward(self, input_ids, attention_mask):
-        outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
-        cls_rep = outputs.last_hidden_state[:, 0]
-        cls_rep = self.dropout(cls_rep)
-        category_logits = self.category_classifier(cls_rep)
-        priority_logits = self.priority_classifier(cls_rep)
-        return category_logits, priority_logits
+model_version = "v3.0"
 
 
 # ---------------------------------------------------------------------------
@@ -61,38 +43,30 @@ with warnings.catch_warnings():
 print("[OK] Embedding model loaded")
 
 # ---------------------------------------------------------------------------
-# Load transformer complaint model at startup (CPU only)
+# Load transformer complaint models at startup (CPU only)
 # ---------------------------------------------------------------------------
 tokenizer = None
-model = None
-model_version = "v2.0"
+category_model = None
+priority_model = None
 
 try:
-    tokenizer = DistilBertTokenizerFast.from_pretrained(MODEL_DIR)
-    config_path = os.path.join(MODEL_DIR, "config.json")
-    with open(config_path, "r", encoding="utf-8") as f:
-        cfg = json.load(f)
-    num_categories = len(cfg["category_labels"])
-    num_priorities = len(cfg["priority_labels"])
-    base_model_name = cfg["base_model_name"]
-    model_version = cfg.get("model_version", "v2.0")
-    max_len = int(cfg.get("max_length", 64))
+    tokenizer = DistilBertTokenizerFast.from_pretrained(CATEGORY_MODEL_DIR)
 
-    model = ComplaintClassifierV2(
-        base_model_name=base_model_name,
-        num_categories=num_categories,
-        num_priorities=num_priorities,
+    category_model = DistilBertForSequenceClassification.from_pretrained(
+        CATEGORY_MODEL_DIR
     )
-    model_path = os.path.join(MODEL_DIR, "model.pt")
-    state_dict = torch.load(model_path, map_location=torch.device("cpu"))
-    model.load_state_dict(state_dict)
-    model.eval()
-    MAX_LENGTH = max_len
-    print("Transformer model loaded successfully (4-category version)")
+
+    priority_model = DistilBertForSequenceClassification.from_pretrained(
+        PRIORITY_MODEL_DIR
+    )
+
+    category_model.eval()
+    priority_model.eval()
+
+    print("Category and Priority models loaded successfully")
+
 except Exception as e:
-    print(f"ERROR: Could not load transformer model: {e}")
-    tokenizer = None
-    model = None
+    print(f"ERROR loading models: {e}")
 
 
 class EmbedRequest(BaseModel):
@@ -136,17 +110,17 @@ class ComplaintRequest(BaseModel):
 @app.post("/predict")
 def predict_complaint(data: ComplaintRequest):
     """
-    Predict category and priority using the transformer model
-    (DistilBERT multi-head classifier, 4 categories, 3 priorities).
+    Predict category and priority using the transformer models
+    (separate DistilBERT classifiers, 4 categories, 3 priorities).
     """
-    if model is None or tokenizer is None:
+    if tokenizer is None or category_model is None or priority_model is None:
         return {
             "decision": "AI_UNAVAILABLE",
             "category": "Uncertain",
             "categoryConfidence": 0.0,
             "priority": "Medium",
             "priorityConfidence": 0.0,
-            "error": "Transformer model not loaded",
+            "error": "Transformer models not loaded",
         }
 
     # Combine and normalize text exactly like training: lowercased
@@ -166,7 +140,18 @@ def predict_complaint(data: ComplaintRequest):
 
     # Forward pass (CPU, no grad)
     with torch.no_grad():
-        cat_logits, pri_logits = model(input_ids, attention_mask)
+        cat_outputs = category_model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+        )
+
+        pri_outputs = priority_model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+        )
+
+    cat_logits = cat_outputs.logits
+    pri_logits = pri_outputs.logits
 
     # Predictions from logits
     category_id = torch.argmax(cat_logits, dim=1).item()

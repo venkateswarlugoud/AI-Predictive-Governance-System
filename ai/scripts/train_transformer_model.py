@@ -34,6 +34,10 @@ MODEL_DIR_PRIORITY = os.path.join(BASE_DIR, "models", "complaint_priority_model"
 REQUIRED_COLUMNS = ["complaint_text", "category", "priority"]
 CATEGORY_LABELS: List[str] = ["Sanitation", "Roads", "Electricity", "Water"]
 PRIORITY_LABELS: List[str] = ["Low", "Medium", "High"]
+category_label2id: Dict[str, int] = {label: idx for idx, label in enumerate(CATEGORY_LABELS)}
+category_id2label: Dict[int, str] = {idx: label for idx, label in enumerate(CATEGORY_LABELS)}
+priority_label2id: Dict[str, int] = {label: idx for idx, label in enumerate(PRIORITY_LABELS)}
+priority_id2label: Dict[int, str] = {idx: label for idx, label in enumerate(PRIORITY_LABELS)}
 MODEL_NAME = "distilbert-base-uncased"
 MAX_LENGTH = 128
 
@@ -92,17 +96,6 @@ def _compute_accuracy(eval_pred) -> Dict[str, float]:
     labels = eval_pred.label_ids
     preds = np.argmax(logits, axis=-1)
     return {"accuracy": float((preds == labels).mean())}
-
-
-def _label_to_id(labels: List[str], allowed: List[str]) -> List[int]:
-    allowed_set = {a.lower(): i for i, a in enumerate(allowed)}
-    ids = []
-    for raw in labels:
-        key = str(raw).strip().lower()
-        if key not in allowed_set:
-            raise ValueError(f"Invalid label: {raw!r}. Allowed: {allowed}")
-        ids.append(allowed_set[key])
-    return ids
 
 
 def _safe_clear_output_dir(output_dir: str) -> None:
@@ -174,12 +167,14 @@ def _train_one(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
     label_col: str,
-    allowed_labels: List[str],
+    num_labels: int,
+    id2label: Dict[int, str],
+    label2id: Dict[str, int],
     output_dir: str,
     tokenizer: DistilBertTokenizerFast,
 ) -> Tuple[Dict[str, float], Trainer]:
-    y_train = _label_to_id(train_df[label_col].tolist(), allowed_labels)
-    y_test = _label_to_id(test_df[label_col].tolist(), allowed_labels)
+    y_train = train_df[label_col].astype(int).tolist()
+    y_test = test_df[label_col].astype(int).tolist()
 
     train_ds = ComplaintDataset(
         train_df["complaint_text"].tolist(),
@@ -199,7 +194,9 @@ def _train_one(
 
     model = DistilBertForSequenceClassification.from_pretrained(
         MODEL_NAME,
-        num_labels=len(allowed_labels),
+        num_labels=num_labels,
+        id2label=id2label,
+        label2id=label2id,
     )
 
     trainer = Trainer(
@@ -212,7 +209,7 @@ def _train_one(
     trainer.train()
     eval_out = trainer.evaluate()
 
-    trainer.save_model(output_dir)
+    model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
     return eval_out, trainer
 
@@ -221,6 +218,25 @@ def train() -> None:
     print("Loading dataset: ai/data/complaints_train_merged.csv")
     set_seed(42)
     df = _load_and_validate_df()
+
+    # Map string labels to deterministic integer IDs using explicit label maps.
+    mapped_category = df["category"].map(category_label2id)
+    if mapped_category.isnull().any():
+        unknown = sorted(df.loc[mapped_category.isnull(), "category"].astype(str).unique())
+        raise ValueError(
+            f"Unknown category label(s) found in dataset: {unknown}. "
+            f"Expected one of: {CATEGORY_LABELS}"
+        )
+    df["category"] = mapped_category.astype(int)
+
+    mapped_priority = df["priority"].map(priority_label2id)
+    if mapped_priority.isnull().any():
+        unknown = sorted(df.loc[mapped_priority.isnull(), "priority"].astype(str).unique())
+        raise ValueError(
+            f"Unknown priority label(s) found in dataset: {unknown}. "
+            f"Expected one of: {PRIORITY_LABELS}"
+        )
+    df["priority"] = mapped_priority.astype(int)
 
     tokenizer = DistilBertTokenizerFast.from_pretrained(MODEL_NAME)
 
@@ -237,7 +253,9 @@ def train() -> None:
         train_df=train_df,
         test_df=test_df,
         label_col="category",
-        allowed_labels=CATEGORY_LABELS,
+        num_labels=len(CATEGORY_LABELS),
+        id2label=category_id2label,
+        label2id=category_label2id,
         output_dir=MODEL_DIR_CATEGORY,
         tokenizer=tokenizer,
     )
@@ -255,7 +273,9 @@ def train() -> None:
         train_df=train_df_p,
         test_df=test_df_p,
         label_col="priority",
-        allowed_labels=PRIORITY_LABELS,
+        num_labels=len(PRIORITY_LABELS),
+        id2label=priority_id2label,
+        label2id=priority_label2id,
         output_dir=MODEL_DIR_PRIORITY,
         tokenizer=tokenizer,
     )
