@@ -20,6 +20,7 @@ import wardRouter from "./routes/wardRoutes.js";
 import { getCities } from "./controllers/wardController.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import debugRoutes from "./routes/debugRoutes.js";
+import mapRoutes from "./routes/mapRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -46,6 +47,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/debug", debugRoutes);
 app.get("/api/cities", getCities);
 app.use("/api/wards", wardRouter);
+app.use("/api/map", mapRoutes);
 
 // ---------------------------------------------------------------------------
 // SMTP startup: validate env (never log SMTP_PASS), then verify connection

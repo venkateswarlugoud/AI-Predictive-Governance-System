@@ -89,3 +89,56 @@ export const resolveAlert = async (alertId, resolutionNote) => {
     throw new Error(error.response?.data?.message || "Failed to resolve alert");
   }
 };
+
+/**
+ * ==================================================
+ * MAP API SERVICES (Phase-2)
+ * ==================================================
+ */
+
+/**
+ * Get complaints near a location
+ * @param {number} lng - Longitude
+ * @param {number} lat - Latitude
+ * @param {number} distance - Distance in meters (optional, default: 5000)
+ * @returns {Promise<Object>} Response with complaints array
+ */
+export const getNearbyComplaints = async (lng, lat, distance = 5000) => {
+  try {
+    const response = await API.get("/map/near", {
+      params: { lng, lat, distance },
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.message || "Failed to fetch nearby complaints");
+  }
+};
+
+/**
+ * Get heatmap data
+ * @param {string} timeFilter - Optional: "last7", "last30", "last90" (default: "last30")
+ * @returns {Promise<Object>} Response with heatmap data array
+ */
+export const getHeatmapData = async (timeFilter = "last30") => {
+  try {
+    const response = await API.get("/map/heatmap", {
+      params: { timeFilter },
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.message || "Failed to fetch heatmap data");
+  }
+};
+
+/**
+ * Get ward risk data
+ * @returns {Promise<Object>} Response with ward risk data array
+ */
+export const getWardRiskData = async () => {
+  try {
+    const response = await API.get("/map/ward-risk");
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.message || "Failed to fetch ward risk data");
+  }
+};

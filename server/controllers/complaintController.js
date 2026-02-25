@@ -25,7 +25,7 @@ import {
  */
 export const createComplaint = async (req, res) => {
   try {
-    const { title, description, location, ward } = req.body;
+    const { title, description, location, ward, geoLocation } = req.body;
 
     // Basic validation
     if (!title || !description || !location || !ward) {
@@ -41,6 +41,54 @@ export const createComplaint = async (req, res) => {
         success: false,
         message: "Not authenticated",
       });
+    }
+
+    // ========================================
+    // GEO-LOCATION VALIDATION (Phase-2)
+    // ========================================
+    let validatedGeoLocation = null;
+    // Only process geoLocation if it exists AND has coordinates
+    // This prevents Mongoose from creating empty geoLocation objects
+    if (geoLocation && geoLocation.coordinates) {
+      // Validate geoLocation structure
+      if (!Array.isArray(geoLocation.coordinates) || geoLocation.coordinates.length !== 2) {
+        return res.status(400).json({
+          success: false,
+          message: "geoLocation.coordinates must be an array of 2 numbers [longitude, latitude]",
+        });
+      }
+
+      const [longitude, latitude] = geoLocation.coordinates;
+
+      // Validate coordinate types
+      if (typeof longitude !== "number" || typeof latitude !== "number") {
+        return res.status(400).json({
+          success: false,
+          message: "geoLocation.coordinates must contain numbers only",
+        });
+      }
+
+      // Validate longitude range (-180 to 180)
+      if (longitude < -180 || longitude > 180) {
+        return res.status(400).json({
+          success: false,
+          message: "Longitude must be between -180 and 180",
+        });
+      }
+
+      // Validate latitude range (-90 to 90)
+      if (latitude < -90 || latitude > 90) {
+        return res.status(400).json({
+          success: false,
+          message: "Latitude must be between -90 and 90",
+        });
+      }
+
+      // Construct valid GeoJSON Point
+      validatedGeoLocation = {
+        type: "Point",
+        coordinates: [longitude, latitude],
+      };
     }
 
     const combinedText = `${title}. ${description}`.trim();
@@ -153,7 +201,7 @@ export const createComplaint = async (req, res) => {
     // ========================================
     // STEP 4: CREATE COMPLAINT WITH GOVERNANCE FIELDS
     // ========================================
-    const complaint = await Complaint.create({
+    const complaintData = {
       title,
       description,
       location,
@@ -172,7 +220,28 @@ export const createComplaint = async (req, res) => {
       complaintMonth: now.getMonth() + 1,
       complaintYear: now.getFullYear(),
       createdAt: now,
-    });
+    };
+
+    // Add geoLocation if provided (Phase-2)
+    // Only add if we have valid coordinates to prevent MongoDB errors
+    if (validatedGeoLocation && 
+        validatedGeoLocation.coordinates && 
+        Array.isArray(validatedGeoLocation.coordinates) && 
+        validatedGeoLocation.coordinates.length === 2) {
+      complaintData.geoLocation = validatedGeoLocation;
+    } else {
+      // CRITICAL: Explicitly ensure geoLocation is NEVER in complaintData when invalid
+      // Prevents MongoDB "Can't extract geo keys" error from 2dsphere index
+      delete complaintData.geoLocation;
+    }
+
+    // Use new + save instead of create to ensure pre-save hook runs and strips invalid geoLocation
+    const complaint = new Complaint(complaintData);
+    // Double-check: remove invalid geoLocation before save (belt-and-suspenders)
+    if (complaint.geoLocation && (!complaint.geoLocation?.coordinates || !Array.isArray(complaint.geoLocation.coordinates) || complaint.geoLocation.coordinates.length !== 2)) {
+      complaint.geoLocation = undefined;
+    }
+    await complaint.save();
 
     // Best-effort acknowledgement email (does not affect complaint creation).
     try {
