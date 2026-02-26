@@ -121,3 +121,6 @@ ai/data/
 ai/complaints.csv
 # Trained transformer models (hosted externally)
 ai/models/
+GEO_LOCATION_VIEWING_GUIDE.md
+PHASE2_IMPLEMENTATION_SUMMARY.md
+PROJECT_DOCUMENTATION.md
