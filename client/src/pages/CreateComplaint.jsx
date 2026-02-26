@@ -26,6 +26,11 @@ const CreateComplaint = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  // Optional geo-location state (Phase-2, additive only)
+  const [geoLocation, setGeoLocation] = useState(null); // { lat, lng }
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState(null);
   const navigate = useNavigate();
   const wardInputRef = useRef(null);
   const wardDropdownRef = useRef(null);
@@ -209,8 +214,18 @@ const CreateComplaint = () => {
     if (!validate()) return;
 
     setLoading(true);
+
+    // Build payload with optional geoLocation (if browser location was captured)
+    const payload = { ...formData };
+    if (geoLocation && typeof geoLocation.lat === "number" && typeof geoLocation.lng === "number") {
+      payload.geoLocation = {
+        // Backend expects [longitude, latitude]
+        coordinates: [geoLocation.lng, geoLocation.lat],
+      };
+    }
+
     try {
-      const response = await API.post("/complaint", formData);
+      const response = await API.post("/complaint", payload);
       if (response.data.success || response.status === 201) {
         setSuccess(true);
         setTimeout(() => {
@@ -240,6 +255,57 @@ const CreateComplaint = () => {
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
+  };
+
+  const handleUseCurrentLocation = () => {
+    setGeoError(null);
+
+    if (!navigator.geolocation) {
+      setGeoError("Browser location is not supported. Please update your browser or allow location access.");
+      return;
+    }
+
+    setGeoLoading(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+
+        // Basic range guard; detailed validation is enforced in backend
+        if (
+          typeof latitude !== "number" ||
+          typeof longitude !== "number" ||
+          Number.isNaN(latitude) ||
+          Number.isNaN(longitude)
+        ) {
+          setGeoError("Received invalid location from device. Please try again.");
+          setGeoLocation(null);
+          setGeoLoading(false);
+          return;
+        }
+
+        setGeoLocation({ lat: latitude, lng: longitude });
+        setGeoLoading(false);
+      },
+      (error) => {
+        let message = "Unable to access your current location.";
+        if (error.code === error.PERMISSION_DENIED) {
+          message = "Location permission was denied. You can still submit using text location only.";
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          message = "Location information is unavailable. Please try again from an open area.";
+        } else if (error.code === error.TIMEOUT) {
+          message = "Location request timed out. Please try again.";
+        }
+        setGeoError(message);
+        setGeoLocation(null);
+        setGeoLoading(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000,
+      }
+    );
   };
 
   return (
@@ -373,6 +439,36 @@ const CreateComplaint = () => {
               {errors.location && (
                 <div className="error-message">{errors.location}</div>
               )}
+              <div className="form-hint">
+                Provide a clear nearby landmark or address (for example: "Church Street near water tank").
+              </div>
+
+              {/* Optional: capture precise map coordinates for geospatial dashboard */}
+              <div style={{ marginTop: "12px" }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleUseCurrentLocation}
+                  disabled={geoLoading || loading}
+                  style={{ padding: "6px 12px", fontSize: "13px" }}
+                >
+                  {geoLoading ? "Detecting current location..." : "Use my current location (optional)"}
+                </button>
+                <div className="form-hint" style={{ marginTop: "6px" }}>
+                  This helps officers view your complaint on the city map. If you skip this, your complaint will still be
+                  submitted normally.
+                </div>
+                {geoLocation && !geoError && (
+                  <div className="form-hint" style={{ marginTop: "4px", fontFamily: "monospace" }}>
+                    Using coordinates: {geoLocation.lat.toFixed(6)}, {geoLocation.lng.toFixed(6)} (Lat, Lng)
+                  </div>
+                )}
+                {geoError && (
+                  <div className="error-message" style={{ marginTop: "6px" }}>
+                    {geoError}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="form-group">

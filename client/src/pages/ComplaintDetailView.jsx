@@ -311,6 +311,12 @@ const ComplaintDetailView = () => {
                   </div>
                 </div>
                 <div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Location (Text)</div>
+                  <div style={{ fontSize: "16px", fontWeight: 500, color: "#334155" }}>
+                    {complaint.location || "N/A"}
+                  </div>
+                </div>
+                <div>
                   <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Priority</div>
                   <div>
                     <span className={`badge ${getPriorityBadge(complaint.priority)}`}>
@@ -350,6 +356,33 @@ const ComplaintDetailView = () => {
                     {formatDate(complaint.createdAt)}
                   </div>
                 </div>
+                {complaint.geoLocation && complaint.geoLocation.coordinates && (
+                  <div>
+                    <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Location Coordinates</div>
+                    <div style={{ fontSize: "14px", fontWeight: 500, color: "#334155", fontFamily: "monospace" }}>
+                      {complaint.geoLocation.coordinates[1].toFixed(6)}, {complaint.geoLocation.coordinates[0].toFixed(6)}
+                      <br />
+                      <span style={{ fontSize: "11px", color: "#64748b" }}>
+                        (Lat, Lng)
+                      </span>
+                      <br />
+                      <a
+                        href={`https://www.google.com/maps?q=${complaint.geoLocation.coordinates[1]},${complaint.geoLocation.coordinates[0]}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          fontSize: "12px",
+                          color: "#3b82f6",
+                          textDecoration: "underline",
+                          marginTop: "4px",
+                          display: "inline-block"
+                        }}
+                      >
+                        View on Google Maps →
+                      </a>
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "8px" }}>Description</div>

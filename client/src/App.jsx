@@ -13,6 +13,7 @@ import SpikesView from "./pages/SpikesView";
 import AlertsListView from "./pages/AlertsListView";
 import AlertDetailView from "./pages/AlertDetailView";
 import ComplaintDetailView from "./pages/ComplaintDetailView";
+import AdminMapView from "./pages/AdminMapView";
 import Navbar from "./components/Navbar";
 import PrivateRoute from "./components/PrivateRoute";
 import AdminRoute from "./components/AdminRoute";
@@ -102,6 +103,14 @@ function App() {
           element={
             <AdminRoute>
               <ComplaintDetailView />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/map"
+          element={
+            <AdminRoute>
+              <AdminMapView />
             </AdminRoute>
           }
         />

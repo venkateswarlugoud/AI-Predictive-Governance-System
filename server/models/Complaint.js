@@ -56,6 +56,11 @@ const complaintSchema = new mongoose.Schema(
     location: { type: String, required: true },
     ward: { type: String, required: true, index: true },
 
+    // GeoJSON field for geospatial queries (Phase-2)
+    // Optional - only set in controller when valid coordinates provided.
+    // Using Mixed type to avoid Mongoose auto-creating { type: "Point" } without coordinates.
+    geoLocation: { type: mongoose.Schema.Types.Mixed },
+
     status: {
       type: String,
       enum: ["New", "In Progress", "Resolved"],
@@ -89,7 +94,32 @@ complaintSchema.pre("save", function (next) {
   const date = this.createdAt || new Date();
   this.complaintMonth = date.getMonth() + 1;
   this.complaintYear = date.getFullYear();
+  
+  // Remove geoLocation if it exists but has no valid coordinates (Phase-2)
+  // This ensures backward compatibility - complaints without geoLocation are valid
+  if (this.isModified('geoLocation') || this.geoLocation) {
+    const hasValidCoordinates = 
+      this.geoLocation && 
+      this.geoLocation.coordinates && 
+      Array.isArray(this.geoLocation.coordinates) && 
+      this.geoLocation.coordinates.length === 2 &&
+      typeof this.geoLocation.coordinates[0] === 'number' &&
+      typeof this.geoLocation.coordinates[1] === 'number' &&
+      !isNaN(this.geoLocation.coordinates[0]) &&
+      !isNaN(this.geoLocation.coordinates[1]);
+    
+    if (!hasValidCoordinates) {
+      // Completely remove the field from the document to prevent MongoDB errors
+      delete this.geoLocation;
+      this.set('geoLocation', undefined);
+    }
+  }
+  
   next();
 });
+
+// 2dsphere index for geospatial queries (Phase-2)
+// Sparse index - only indexes documents with valid geoLocation
+complaintSchema.index({ geoLocation: "2dsphere" }, { sparse: true });
 
 export default mongoose.model("Complaint", complaintSchema);

@@ -663,9 +663,18 @@ const AdminDashboard = () => {
             <h1 className="admin-title">Municipal Dashboard</h1>
             <p className="admin-subtitle">Manage and track all citizen municipal grievances</p>
           </div>
-          <div className="admin-user">
-            <span className="admin-user-name">{user?.name}</span>
-            <span className="admin-user-role">Municipal Officer</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <button
+              onClick={() => navigate("/admin/map")}
+              className="refresh-btn"
+              style={{ padding: "8px 16px", fontSize: "14px" }}
+            >
+              Geospatial Risk Map
+            </button>
+            <div className="admin-user">
+              <span className="admin-user-name">{user?.name}</span>
+              <span className="admin-user-role">Municipal Officer</span>
+            </div>
           </div>
         </div>
 
