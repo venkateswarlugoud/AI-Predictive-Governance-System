@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import ForgotPasswordModal from "../components/ForgotPasswordModal";
 import "./AuthPages.css";
 
@@ -14,6 +15,7 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const { login } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
   const validate = () => {
@@ -53,6 +55,10 @@ const LoginPage = () => {
     } catch (error) {
       setErrors({
         submit: error.response?.data?.message || "Invalid email or password",
+      });
+      showToast({
+        type: "error",
+        message: error.response?.data?.message || "Invalid email or password",
       });
     } finally {
       setLoading(false);

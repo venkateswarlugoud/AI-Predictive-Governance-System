@@ -47,11 +47,61 @@ const complaintSchema = new mongoose.Schema(
       enum: ["AI_CONFIRMED", "AI_SUGGESTED", "REQUIRES_REVIEW", "FALLBACK_RULE", "INVALID_INPUT", "INVALID_CONFIDENCE"],
     },
 
+    finalCategory: {
+      type: String,
+      enum: ["Sanitation", "Roads", "Electricity", "Water", "Uncertain"],
+      index: true,
+    },
+
+    finalPriority: {
+      type: String,
+      enum: ["Low", "Medium", "High"],
+      index: true,
+    },
+
+    decisionAudit: {
+      decidedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+      },
+      decidedAt: {
+        type: Date,
+        default: null,
+      },
+      overrideReason: {
+        type: String,
+        default: null,
+      },
+    },
+
     // AI model version tracking
     aiModelVersion: {
       type: String,
       default: null,
     },
+
+    aiPredictionHistory: [
+      {
+        modelVersion: { type: String, required: true },
+        category: {
+          type: String,
+          enum: ["Sanitation", "Roads", "Electricity", "Water", "Uncertain"],
+          required: true,
+        },
+        priority: {
+          type: String,
+          enum: ["Low", "Medium", "High"],
+          required: true,
+        },
+        categoryConfidence: { type: Number, default: null },
+        priorityConfidence: { type: Number, default: null },
+        predictedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
 
     location: { type: String, required: true },
     ward: { type: String, required: true, index: true },

@@ -32,7 +32,10 @@ export const getRepeatComplaintsByCategory = async (req, res) => {
       { $match: baseMatchFilter },
       {
         $group: {
-          _id: { ward: "$ward", category: "$category" },
+          _id: {
+            ward: "$ward",
+            category: { $ifNull: ["$finalCategory", "$category"] },
+          },
           totalComplaints: { $sum: 1 },
         },
       },
@@ -83,7 +86,10 @@ export const getRepeatComplaintsByWard = async (req, res) => {
       { $match: baseMatchFilter },
       {
         $group: {
-          _id: { ward: "$ward", category: "$category" },
+          _id: {
+            ward: "$ward",
+            category: { $ifNull: ["$finalCategory", "$category"] },
+          },
           totalComplaints: { $sum: 1 },
         },
       },
@@ -139,7 +145,7 @@ export const getRepeatComplaintTrend = async (req, res) => {
             year: "$complaintYear",
             month: "$complaintMonth",
             ward: "$ward",
-            category: "$category",
+            category: { $ifNull: ["$finalCategory", "$category"] },
           },
           totalComplaints: { $sum: 1 },
         },

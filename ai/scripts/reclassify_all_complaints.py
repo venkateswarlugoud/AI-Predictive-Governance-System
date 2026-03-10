@@ -14,6 +14,7 @@ import json
 import logging
 import warnings
 from typing import Tuple
+from datetime import datetime
 
 # Project root (two levels up from this script, i.e. repo root)
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -141,7 +142,9 @@ def reclassify_all_complaints() -> None:
     total = 0
     updated = 0
 
-    for doc in complaints.find({}, {"_id": 1, "title": 1, "description": 1}):
+    for doc in complaints.find(
+        {}, {"_id": 1, "title": 1, "description": 1, "decisionAudit": 1}
+    ):
         total += 1
 
         title = (doc.get("title") or "").strip()
@@ -184,6 +187,11 @@ def reclassify_all_complaints() -> None:
             priority_label, priority_conf
         )
 
+        has_override = (
+            doc.get("decisionAudit", {}).get("decidedBy") is not None
+        )
+
+        # Always refresh advisory AI fields
         update_doc = {
             "category": category_label,
             "priority": priority_label,
@@ -196,7 +204,30 @@ def reclassify_all_complaints() -> None:
             "aiModelVersion": model_version,
         }
 
-        result = complaints.update_one({"_id": doc["_id"]}, {"$set": update_doc})
+        # Only update authoritative final fields when no human override exists
+        if not has_override:
+            update_doc["finalCategory"] = category_label
+            update_doc["finalPriority"] = priority_label
+        else:
+            print(
+                f"Skipped final decision update for complaint {doc['_id']} due to human override"
+            )
+
+        history_entry = {
+            "modelVersion": model_version,
+            "category": category_label,
+            "priority": priority_label,
+            "categoryConfidence": category_conf,
+            "priorityConfidence": priority_conf,
+            "predictedAt": datetime.utcnow(),
+        }
+
+        update_ops = {
+            "$set": update_doc,
+            "$push": {"aiPredictionHistory": history_entry},
+        }
+
+        result = complaints.update_one({"_id": doc["_id"]}, update_ops)
         if result.modified_count:
             updated += 1
 

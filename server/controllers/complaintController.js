@@ -208,6 +208,8 @@ export const createComplaint = async (req, res) => {
       ward,
       category: finalCategory,
       priority: finalPriority,
+      finalCategory: finalCategory,
+      finalPriority: finalPriority,
       categoryConfidence,
       priorityConfidence,
       categorySource,
@@ -221,6 +223,20 @@ export const createComplaint = async (req, res) => {
       complaintYear: now.getFullYear(),
       createdAt: now,
     };
+
+    // Initialize AI prediction history when AI service returned a prediction
+    if (aiServiceAvailable) {
+      complaintData.aiPredictionHistory = [
+        {
+          modelVersion: aiModelVersion || "unknown",
+          category: finalCategory,
+          priority: finalPriority,
+          categoryConfidence: aiCategoryConfidence || null,
+          priorityConfidence: aiPriorityConfidence || null,
+          predictedAt: now,
+        },
+      ];
+    }
 
     // Add geoLocation if provided (Phase-2)
     // Only add if we have valid coordinates to prevent MongoDB errors
@@ -378,7 +394,10 @@ export const getMyComplaints = async (req, res) => {
  */
 export const getComplaintById = async (req, res) => {
   try {
-    const complaint = await Complaint.findById(req.params.id);
+    const complaint = await Complaint.findById(req.params.id).populate(
+      "decisionAudit.decidedBy",
+      "name role"
+    );
 
     if (!complaint) {
       return res.status(404).json({
@@ -453,7 +472,8 @@ export const updateComplaintStatus = async (req, res) => {
       );
       const citizen = populatedComplaint?.user;
 
-      if (citizen && citizen.email && isWithinNotificationRateLimit(populatedComplaint, 10)) {
+      // Always notify on status change; rate limiting is handled at other notification endpoints.
+      if (citizen && citizen.email) {
         if (status === "Resolved" && previousStatus !== "Resolved") {
           const resolutionPayload = buildResolutionConfirmationEmail(
             populatedComplaint,
@@ -513,6 +533,103 @@ export const updateComplaintStatus = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to update complaint status",
+    });
+  }
+};
+
+/**
+ * =======================================
+ * OVERRIDE COMPLAINT DECISION (Admin)
+ * =======================================
+ *
+ * GOVERNANCE NOTES:
+ * - Only finalCategory/finalPriority are overridden.
+ * - AI advisory fields (category, priority, confidences, sources,
+ *   decision statuses, aiModelVersion) remain immutable.
+ * - Resolved complaints cannot be overridden.
+ */
+export const overrideComplaintDecision = async (req, res) => {
+  try {
+    const { finalCategory, finalPriority, overrideReason } = req.body || {};
+
+    if (!overrideReason || typeof overrideReason !== "string" || overrideReason.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "overrideReason is required",
+      });
+    }
+
+    if (finalCategory === undefined && finalPriority === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one of finalCategory or finalPriority must be provided",
+      });
+    }
+
+    const allowedCategories = new Set(["Sanitation", "Roads", "Electricity", "Water", "Uncertain"]);
+    const allowedPriorities = new Set(["Low", "Medium", "High"]);
+
+    if (finalCategory !== undefined) {
+      if (typeof finalCategory !== "string" || !allowedCategories.has(finalCategory)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid finalCategory value",
+        });
+      }
+    }
+
+    if (finalPriority !== undefined) {
+      if (typeof finalPriority !== "string" || !allowedPriorities.has(finalPriority)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid finalPriority value",
+        });
+      }
+    }
+
+    const complaint = await Complaint.findById(req.params.id);
+
+    if (!complaint) {
+      return res.status(404).json({
+        success: false,
+        message: "Complaint not found",
+      });
+    }
+
+    if (complaint.status === "Resolved") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot override a resolved complaint.",
+      });
+    }
+
+    if (finalCategory !== undefined) {
+      complaint.finalCategory = finalCategory;
+    }
+
+    if (finalPriority !== undefined) {
+      complaint.finalPriority = finalPriority;
+    }
+
+    complaint.decisionAudit = {
+      decidedBy: req.user._id,
+      decidedAt: new Date(),
+      overrideReason: overrideReason.trim(),
+    };
+
+    const updatedComplaint = await complaint.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Complaint decision overridden successfully",
+      complaint: updatedComplaint,
+    });
+  } catch (error) {
+    console.error("❌ OVERRIDE COMPLAINT DECISION ERROR:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to override complaint decision",
     });
   }
 };

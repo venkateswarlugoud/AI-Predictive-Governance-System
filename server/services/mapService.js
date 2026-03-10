@@ -113,14 +113,38 @@ export const getHeatmapData = async (timeFilter = "last30") => {
             lat: "$roundedLat",
           },
           count: { $sum: 1 },
-          // Calculate weighted count based on priority
+          // Calculate weighted count based on authoritative priority (finalPriority → priority)
           weightedCount: {
             $sum: {
               $switch: {
                 branches: [
-                  { case: { $eq: ["$priority", "High"] }, then: 3 },
-                  { case: { $eq: ["$priority", "Medium"] }, then: 2 },
-                  { case: { $eq: ["$priority", "Low"] }, then: 1 },
+                  {
+                    case: {
+                      $eq: [
+                        { $ifNull: ["$finalPriority", "$priority"] },
+                        "High",
+                      ],
+                    },
+                    then: 3,
+                  },
+                  {
+                    case: {
+                      $eq: [
+                        { $ifNull: ["$finalPriority", "$priority"] },
+                        "Medium",
+                      ],
+                    },
+                    then: 2,
+                  },
+                  {
+                    case: {
+                      $eq: [
+                        { $ifNull: ["$finalPriority", "$priority"] },
+                        "Low",
+                      ],
+                    },
+                    then: 1,
+                  },
                 ],
                 default: 1,
               },

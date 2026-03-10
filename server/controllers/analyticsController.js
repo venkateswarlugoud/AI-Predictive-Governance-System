@@ -22,7 +22,12 @@ export const getAnalyticsSummary = async (req, res) => {
 export const getComplaintsByCategory = async (req, res) => {
   try {
     const result = await Complaint.aggregate([
-      { $group: { _id: "$category", count: { $sum: 1 } } },
+      {
+        $group: {
+          _id: { $ifNull: ["$finalCategory", "$category"] },
+          count: { $sum: 1 },
+        },
+      },
       { $sort: { count: -1 } }
     ]);
     res.status(200).json({ success: true, categories: result });
@@ -38,7 +43,12 @@ export const getComplaintsByPriority = async (req, res) => {
   try {
     const result = await Complaint.aggregate([
       { $match: { priority: { $ne: null } } },
-      { $group: { _id: "$priority", count: { $sum: 1 } } }
+      {
+        $group: {
+          _id: { $ifNull: ["$finalPriority", "$priority"] },
+          count: { $sum: 1 },
+        },
+      },
     ]);
     res.status(200).json({ success: true, priorities: result });
   } catch (error) {
@@ -79,7 +89,16 @@ export const getMonthlyCategoryTrends = async (req, res) => {
   try {
     const data = await Complaint.aggregate([
       validTimeFilter,
-      { $group: { _id: { year: "$complaintYear", month: "$complaintMonth", category: "$category" }, count: { $sum: 1 } } }
+      {
+        $group: {
+          _id: {
+            year: "$complaintYear",
+            month: "$complaintMonth",
+            category: { $ifNull: ["$finalCategory", "$category"] },
+          },
+          count: { $sum: 1 },
+        },
+      },
     ]);
     res.status(200).json({ success: true, trends: data });
   } catch (error) {
@@ -109,7 +128,16 @@ export const getCategoryTrendDirection = async (req, res) => {
   try {
     const data = await Complaint.aggregate([
       validTimeFilter,
-      { $group: { _id: { year: "$complaintYear", month: "$complaintMonth", category: "$category" }, count: { $sum: 1 } } },
+      {
+        $group: {
+          _id: {
+            year: "$complaintYear",
+            month: "$complaintMonth",
+            category: { $ifNull: ["$finalCategory", "$category"] },
+          },
+          count: { $sum: 1 },
+        },
+      },
       { $sort: { "_id.year": -1, "_id.month": -1 } }
     ]);
 
@@ -173,7 +201,16 @@ export const forecastCategoryComplaints = async (req, res) => {
   try {
     const data = await Complaint.aggregate([
       validTimeFilter,
-      { $group: { _id: { year: "$complaintYear", month: "$complaintMonth", category: "$category" }, count: { $sum: 1 } } },
+      {
+        $group: {
+          _id: {
+            year: "$complaintYear",
+            month: "$complaintMonth",
+            category: { $ifNull: ["$finalCategory", "$category"] },
+          },
+          count: { $sum: 1 },
+        },
+      },
       { $sort: { "_id.year": 1, "_id.month": 1 } }
     ]);
 
