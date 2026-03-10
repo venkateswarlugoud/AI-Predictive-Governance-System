@@ -78,7 +78,7 @@ export const detectSpikes = async () => {
         $group: {
           _id: {
             ward: "$ward",
-            category: "$category"
+            category: { $ifNull: ["$finalCategory", "$category"] }
           },
           currentWeekCount: {
             $sum: {

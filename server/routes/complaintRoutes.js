@@ -5,6 +5,7 @@ import {
   getMyComplaints,
   getComplaintById,
   updateComplaintStatus,
+  overrideComplaintDecision,
 } from "../controllers/complaintController.js";
 
 import { protectRoute } from "../middleware/auth.js";
@@ -17,5 +18,6 @@ router.get("/my", protectRoute, getMyComplaints);
 router.get("/", protectRoute, adminOnly, getAllComplaints);
 router.get("/:id", protectRoute, adminOnly, getComplaintById);
 router.put("/:id", protectRoute, adminOnly, updateComplaintStatus);
+router.put("/:id/override", protectRoute, adminOnly, overrideComplaintDecision);
 
 export default router;

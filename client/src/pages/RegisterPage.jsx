@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import "./AuthPages.css";
 
 const RegisterPage = () => {
@@ -17,6 +18,7 @@ const RegisterPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { register } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
   const validate = () => {
@@ -64,12 +66,21 @@ const RegisterPage = () => {
         role: formData.role,
       });
       setSuccess(true);
+      showToast({
+        type: "success",
+        message: "Registration successful. Redirecting to login…",
+      });
       setTimeout(() => {
         navigate("/login");
       }, 2000);
     } catch (error) {
+      const msg = error.response?.data?.message || "Registration failed. Please try again.";
       setErrors({
-        submit: error.response?.data?.message || "Registration failed. Please try again.",
+        submit: msg,
+      });
+      showToast({
+        type: "error",
+        message: msg,
       });
     } finally {
       setLoading(false);

@@ -4,13 +4,12 @@ const API = axios.create({
   baseURL: "http://localhost:5000/api",
 });
 
-// Attach token automatically
+// Attach token automatically (sessionStorage preferred, fallback to localStorage for older data)
 API.interceptors.request.use((req) => {
-  const token = localStorage.getItem("token");
+  const token =
+    sessionStorage.getItem("token") || localStorage.getItem("token");
   if (token) {
     req.headers.Authorization = `Bearer ${token}`;
-  } else {
-    console.warn("No token found in localStorage");
   }
   return req;
 });
@@ -21,6 +20,8 @@ API.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // Token expired or invalid
+      sessionStorage.removeItem("token");
+      sessionStorage.removeItem("user");
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       window.location.href = "/login";

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import API from "../api/axios";
 import { getHotspots, getSpikes, getAllAlerts } from "../api/adminServices";
 import {
@@ -23,6 +24,7 @@ import "./AdminDashboard.css";
 const AdminDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState("complaints");
   
   // Complaints Management State
@@ -32,7 +34,6 @@ const AdminDashboard = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [successMessage, setSuccessMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState("desc");
@@ -344,20 +345,19 @@ const AdminDashboard = () => {
               : c
           )
         );
-        setSuccessMessage("SLA delay apology email sent.");
-        setTimeout(() => setSuccessMessage(""), 3000);
+        showToast({ type: "success", message: "SLA delay apology email sent." });
       } else {
-        alert(
-          response.data?.message ||
-            "Unable to send SLA delay apology email. Please try again later."
-        );
+        showToast({
+          type: "error",
+          message: response.data?.message || "Unable to send SLA delay apology email. Please try again later.",
+        });
       }
     } catch (error) {
       console.error("Failed to send SLA delay apology email:", error);
-      alert(
-        error.response?.data?.message ||
-          "Unable to send SLA delay apology email. Please try again later."
-      );
+      showToast({
+        type: "error",
+        message: error.response?.data?.message || "Unable to send SLA delay apology email. Please try again later.",
+      });
     }
   };
 
@@ -368,14 +368,13 @@ const AdminDashboard = () => {
         setComplaints((prev) =>
           prev.map((c) => (c._id === id ? { ...c, ...response.data.complaint } : c))
         );
-        setSuccessMessage("Status updated successfully");
-        setTimeout(() => setSuccessMessage(""), 3000);
+        showToast({ type: "success", message: "Status updated successfully" });
       } else {
-        alert(response.data.message || "Failed to update status.");
+        showToast({ type: "error", message: response.data.message || "Failed to update status." });
       }
     } catch (error) {
       console.error("Failed to update status:", error);
-      alert(error.response?.data?.message || "Failed to update status. Please try again.");
+      showToast({ type: "error", message: error.response?.data?.message || "Failed to update status. Please try again." });
     }
   };
 
@@ -428,6 +427,11 @@ const AdminDashboard = () => {
     return num.toLocaleString("en-US");
   };
 
+  const formatPercent = (value) => {
+    if (!Number.isFinite(value)) return "0%";
+    return `${value.toFixed(1)}%`;
+  };
+
   const getSeverityColor = (severity) => {
     if (severity === "High" || severity === "Severe") return "#dc2626";
     if (severity === "Medium" || severity === "Moderate") return "#f59e0b";
@@ -463,6 +467,62 @@ const AdminDashboard = () => {
     if (status === "Resolved") return "#10b981";
     return "#64748b";
   };
+
+  // Governance Insights Metrics (pure frontend, based on complaints list)
+  const totalGovernanceComplaints = complaints.length;
+  const overrideCount = totalGovernanceComplaints
+    ? complaints.filter((c) => c.decisionAudit?.decidedBy).length
+    : 0;
+  const disagreementCount = totalGovernanceComplaints
+    ? complaints.filter((c) => {
+        const hasCategoryDisagreement =
+          c.category &&
+          c.finalCategory &&
+          c.finalCategory !== c.category;
+        const hasPriorityDisagreement =
+          c.priority &&
+          c.finalPriority &&
+          c.finalPriority !== c.priority;
+        return hasCategoryDisagreement || hasPriorityDisagreement;
+      }).length
+    : 0;
+  const lowConfidenceCount = totalGovernanceComplaints
+    ? complaints.filter((c) => {
+        const catConf =
+          c.categoryConfidence !== undefined && c.categoryConfidence !== null
+            ? Number(c.categoryConfidence)
+            : null;
+        const priConf =
+          c.priorityConfidence !== undefined && c.priorityConfidence !== null
+            ? Number(c.priorityConfidence)
+            : null;
+        const isCatLow = catConf !== null && !Number.isNaN(catConf) && catConf < 0.6;
+        const isPriLow = priConf !== null && !Number.isNaN(priConf) && priConf < 0.6;
+        return isCatLow || isPriLow;
+      }).length
+    : 0;
+
+  const overrideRate = totalGovernanceComplaints
+    ? (overrideCount / totalGovernanceComplaints) * 100
+    : 0;
+  const disagreementRate = totalGovernanceComplaints
+    ? (disagreementCount / totalGovernanceComplaints) * 100
+    : 0;
+  const lowConfidenceRate = totalGovernanceComplaints
+    ? (lowConfidenceCount / totalGovernanceComplaints) * 100
+    : 0;
+
+  const overrideSeverityClass =
+    overrideRate > 10 ? "admin-stat-medium" : "";
+  const lowConfidenceSeverityClass =
+    lowConfidenceRate > 15 ? "admin-stat-high" : "";
+
+  const modelVersionCounts = complaints.reduce((acc, c) => {
+    const version = c.aiModelVersion || "Unknown";
+    acc[version] = (acc[version] || 0) + 1;
+    return acc;
+  }, {});
+  const modelVersionEntries = Object.entries(modelVersionCounts);
 
   const handleHotspotSort = (field) => {
     if (hotspotSortField === field) {
@@ -741,12 +801,6 @@ const AdminDashboard = () => {
         {/* Complaints Section */}
         {activeTab === "complaints" && (
           <>
-            {successMessage && (
-              <div className="admin-success-message">
-                {successMessage}
-              </div>
-            )}
-
             <div className="admin-section">
               <div className="admin-section-header">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
@@ -1393,6 +1447,97 @@ const AdminDashboard = () => {
                       </div>
                     </div>
                   )}
+
+                  {/* Governance Insights */}
+                  <div style={{ marginBottom: "32px" }}>
+                    <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
+                      Governance Insights
+                    </h4>
+                    <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "16px", maxWidth: "720px" }}>
+                      Read-only indicators to understand how often AI suggestions are overridden, where they disagree with final decisions, and how model versions are distributed.
+                    </p>
+                    {totalGovernanceComplaints === 0 ? (
+                      <div className="admin-stat-card">
+                        <div className="admin-stat-content">
+                          <div className="admin-stat-label">No governance data available</div>
+                          <div className="admin-stat-sublabel">
+                            Governance insights appear after complaints have been recorded.
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="admin-stats-grid">
+                        {/* Human Override Rate */}
+                        <div className={`admin-stat-card ${overrideSeverityClass}`}>
+                          <div className="admin-stat-content">
+                            <div className="admin-stat-value">
+                              {formatPercent(overrideRate)}
+                            </div>
+                            <div className="admin-stat-label">Human Override Rate</div>
+                            <div className="admin-stat-sublabel">
+                              {overrideCount} of {formatNumber(totalGovernanceComplaints)} complaints with a recorded human override.
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* AI-Final Disagreement */}
+                        <div className="admin-stat-card">
+                          <div className="admin-stat-content">
+                            <div className="admin-stat-value">
+                              {formatPercent(disagreementRate)}
+                            </div>
+                            <div className="admin-stat-label">AI-Final Disagreement</div>
+                            <div className="admin-stat-sublabel">
+                              {disagreementCount} complaints where AI suggestion differs from the final category or priority.
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Low Confidence Predictions */}
+                        <div className={`admin-stat-card ${lowConfidenceSeverityClass}`}>
+                          <div className="admin-stat-content">
+                            <div className="admin-stat-value">
+                              {formatPercent(lowConfidenceRate)}
+                            </div>
+                            <div className="admin-stat-label">Low Confidence Predictions</div>
+                            <div className="admin-stat-sublabel">
+                              {lowConfidenceCount} complaints with category or priority confidence below 0.6.
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Model Versions */}
+                        <div className="admin-stat-card">
+                          <div className="admin-stat-content">
+                            <div className="admin-stat-label" style={{ marginBottom: "6px" }}>
+                              Model Versions
+                            </div>
+                            {modelVersionEntries.length === 0 ? (
+                              <div className="admin-stat-sublabel">No model version data available.</div>
+                            ) : (
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                {modelVersionEntries.map(([version, count]) => (
+                                  <span
+                                    key={version}
+                                    className="badge"
+                                    style={{
+                                      backgroundColor: "#eef2ff",
+                                      borderColor: "#c7d2fe",
+                                      color: "#3730a3",
+                                      fontSize: "11px",
+                                      padding: "4px 8px",
+                                    }}
+                                  >
+                                    v{version}: {formatNumber(count)}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Escalation Overview (governance alerts only when SLA Breached) */}
                   {escalationSummary && (

@@ -8,10 +8,12 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Restore session from sessionStorage so refresh keeps user logged in.
+    // sessionStorage clears when tab/browser closes, so no long-lived "stuck" login.
     try {
       const storedUser = authService.getCurrentUser();
       setUser(storedUser);
-    } catch (error) {
+    } catch {
       setUser(null);
     } finally {
       setLoading(false);

@@ -154,7 +154,8 @@ export const deriveContributingFactors = ({ slaStatus, priority, repeatStrength 
 export const buildEscalationIndicatorForComplaint = ({ complaint, sla, repeatInfo }) => {
   const base = complaint || {};
   const slaStatus = normalizeSlaStatus(sla?.slaStatus);
-  const priority = base.priority || "Medium";
+  const priority =
+    base.finalPriority || base.priority || "Medium";
   const repeatCount = typeof repeatInfo?.repeatCount === "number" ? repeatInfo.repeatCount : 0;
   const repeatStrength = deriveRepeatStrength(repeatCount);
 

@@ -50,8 +50,8 @@ export const identifyHotspots = async () => {
         $group: {
           _id: {
             ward: "$ward",
-            category: "$category",
-            priority: "$priority",
+            category: { $ifNull: ["$finalCategory", "$category"] },
+            priority: { $ifNull: ["$finalPriority", "$priority"] },
           },
           count: { $sum: 1 },
         },

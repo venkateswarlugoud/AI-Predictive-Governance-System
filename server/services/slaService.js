@@ -54,7 +54,9 @@ export const computeSlaForComplaint = (complaint, now = new Date()) => {
     };
   }
 
-  const slaHours = getSlaHoursForPriority(complaint.priority);
+  const authoritativePriority =
+    complaint.finalPriority || complaint.priority || "Medium";
+  const slaHours = getSlaHoursForPriority(authoritativePriority);
 
   const createdAt = complaint.createdAt ? new Date(complaint.createdAt) : null;
   if (!createdAt || Number.isNaN(createdAt.getTime())) {

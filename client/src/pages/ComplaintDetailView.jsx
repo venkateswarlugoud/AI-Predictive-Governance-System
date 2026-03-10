@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import API from "../api/axios";
+import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
+import AIPredictionTimeline from "../components/AIPredictionTimeline";
 import "./AdminDashboard.css";
 
 const ComplaintDetailView = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { user } = useAuth();
+  const { showToast } = useToast();
   const [complaint, setComplaint] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -22,6 +27,16 @@ const ComplaintDetailView = () => {
   
   // Collapsible section state
   const [isAdvisoryExpanded, setIsAdvisoryExpanded] = useState(false);
+  const [showOverrideForm, setShowOverrideForm] = useState(false);
+  const [finalCategoryInput, setFinalCategoryInput] = useState("");
+  const [finalPriorityInput, setFinalPriorityInput] = useState("");
+  const [overrideReasonInput, setOverrideReasonInput] = useState("");
+  const [overrideSubmitting, setOverrideSubmitting] = useState(false);
+  const [overrideError, setOverrideError] = useState(null);
+
+  const isOverrideValid =
+    overrideReasonInput.trim().length > 0 &&
+    (finalCategoryInput !== "" || finalPriorityInput !== "");
 
   useEffect(() => {
     setAnalysisTriggered(false);
@@ -170,6 +185,55 @@ const ComplaintDetailView = () => {
     return `${days} day${days > 1 ? "s" : ""}`;
   };
 
+  const handleOverrideSubmit = async (e) => {
+    e.preventDefault();
+    if (!isOverrideValid || overrideSubmitting) return;
+
+    try {
+      setOverrideSubmitting(true);
+      setOverrideError(null);
+
+      const payload = {
+        overrideReason: overrideReasonInput.trim(),
+      };
+      if (finalCategoryInput) {
+        payload.finalCategory = finalCategoryInput;
+      }
+      if (finalPriorityInput) {
+        payload.finalPriority = finalPriorityInput;
+      }
+
+      await API.put(`/complaint/${id}/override`, payload);
+
+      showToast({
+        type: "success",
+        message: "Final decision overridden successfully.",
+      });
+      setShowOverrideForm(false);
+      setFinalCategoryInput("");
+      setFinalPriorityInput("");
+      setOverrideReasonInput("");
+      await fetchComplaint();
+    } catch (err) {
+      const msg =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to submit override.";
+      setOverrideError(msg);
+      showToast({
+        type: "error",
+        message: msg,
+      });
+    } finally {
+      setOverrideSubmitting(false);
+    }
+  };
+
+  const handleOverrideCancel = () => {
+    setShowOverrideForm(false);
+    setOverrideError(null);
+  };
+
   if (loading) {
     return (
       <div className="page-container">
@@ -205,6 +269,19 @@ const ComplaintDetailView = () => {
   }
 
   const showAdvisorySection = complaint.status === "Resolved";
+  const finalCategory = complaint.finalCategory || complaint.category || null;
+  const finalPriority = complaint.finalPriority || complaint.priority || null;
+  const isCategoryOverridden =
+    complaint.finalCategory &&
+    complaint.category &&
+    complaint.finalCategory !== complaint.category;
+  const hasOverrideAudit = !!complaint.decisionAudit?.decidedBy;
+  const decidedByName = complaint.decisionAudit?.decidedBy?.name || "Officer";
+  const decidedAtFormatted = complaint.decisionAudit?.decidedAt
+    ? new Date(complaint.decisionAudit.decidedAt).toLocaleString()
+    : "N/A";
+  const overrideReason = complaint.decisionAudit?.overrideReason || "No reason provided";
+  const canOverride = user?.role === "admin" && complaint.status !== "Resolved";
 
   return (
     <div className="page-container">
@@ -301,7 +378,7 @@ const ComplaintDetailView = () => {
                 <div>
                   <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Category</div>
                   <div style={{ fontSize: "16px", fontWeight: 500, color: "#334155" }}>
-                    {complaint.category || "N/A"}
+                    {finalCategory || "N/A"}
                   </div>
                 </div>
                 <div>
@@ -319,8 +396,8 @@ const ComplaintDetailView = () => {
                 <div>
                   <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Priority</div>
                   <div>
-                    <span className={`badge ${getPriorityBadge(complaint.priority)}`}>
-                      {complaint.priority || "N/A"}
+                    <span className={`badge ${getPriorityBadge(finalPriority)}`}>
+                      {finalPriority || "N/A"}
                     </span>
                   </div>
                 </div>
@@ -400,6 +477,368 @@ const ComplaintDetailView = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* AI Advisory - separate section */}
+          <div style={{ marginBottom: "32px" }}>
+            <h3 className="subsection-title" style={{ marginBottom: "20px" }}>
+              AI Advisory
+            </h3>
+            <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "16px" }}>
+              Model suggestion only. Not the official decision.
+            </p>
+            <div
+              style={{
+                padding: "24px",
+                backgroundColor: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: "4px",
+              }}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                  gap: "16px",
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Category</div>
+                  <div style={{ fontSize: "16px", fontWeight: 500, color: "#334155" }}>
+                    {complaint.category || "N/A"}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Priority</div>
+                  <div style={{ fontSize: "16px", fontWeight: 500, color: "#334155" }}>
+                    {complaint.priority || "N/A"}
+                  </div>
+                </div>
+                {complaint.categoryConfidence != null && (
+                  <div>
+                    <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Category Confidence</div>
+                    <div style={{ fontSize: "16px", fontWeight: 500, color: "#334155" }}>
+                      {complaint.categoryConfidence}
+                    </div>
+                  </div>
+                )}
+                {complaint.priorityConfidence != null && (
+                  <div>
+                    <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Priority Confidence</div>
+                    <div style={{ fontSize: "16px", fontWeight: 500, color: "#334155" }}>
+                      {complaint.priorityConfidence}
+                    </div>
+                  </div>
+                )}
+                {complaint.aiModelVersion && (
+                  <div>
+                    <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Model Version</div>
+                    <div style={{ fontSize: "16px", fontWeight: 500, color: "#475569" }}>
+                      {complaint.aiModelVersion}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Final Authority - read-only card (same style as AI Advisory) */}
+          <div style={{ marginBottom: "32px" }}>
+            <h3 className="subsection-title" style={{ marginBottom: "20px" }}>
+              Final Authority
+            </h3>
+            <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "16px" }}>
+              Official decision by authorized municipal officials. This is what is used for the complaint.
+            </p>
+            <div
+              style={{
+                padding: "24px",
+                backgroundColor: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: "4px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "16px",
+                  gap: "8px",
+                }}
+              >
+                <span style={{ fontSize: "13px", color: "#64748b" }}>
+                  Taken by authorized municipal officials.
+                </span>
+                {isCategoryOverridden && (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      padding: "4px 10px",
+                      borderRadius: "999px",
+                      backgroundColor: "#ffedd5",
+                      border: "1px solid #fed7aa",
+                      color: "#9a3412",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    Overridden by Human
+                  </span>
+                )}
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                  gap: "16px",
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Final Category</div>
+                  <div style={{ fontSize: "16px", fontWeight: 600, color: "#111827" }}>
+                    {finalCategory || "N/A"}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Final Priority</div>
+                  <div style={{ fontSize: "16px", fontWeight: 600, color: "#111827" }}>
+                    {finalPriority || "N/A"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Override section - only for admins, below the Final Authority card */}
+            {canOverride && (
+              <div
+                style={{
+                  marginTop: "20px",
+                  padding: "24px",
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "4px",
+                }}
+              >
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "#334155", marginBottom: "16px" }}>
+                  Override final decision
+                </div>
+                {!showOverrideForm ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowOverrideForm(true)}
+                    className="refresh-btn"
+                    style={{
+                      padding: "10px 20px",
+                      fontSize: "14px",
+                      borderColor: "#b91c1c",
+                      color: "#b91c1c",
+                      backgroundColor: "#fff",
+                    }}
+                  >
+                    Override Final Decision
+                  </button>
+                ) : (
+                  <form onSubmit={handleOverrideSubmit}>
+                    {overrideError && (
+                      <div
+                        style={{
+                          marginBottom: "16px",
+                          padding: "12px 16px",
+                          backgroundColor: "#fef2f2",
+                          border: "1px solid #fecaca",
+                          borderRadius: "4px",
+                          fontSize: "14px",
+                          color: "#b91c1c",
+                        }}
+                      >
+                        {overrideError}
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                        gap: "16px",
+                        marginBottom: "16px",
+                      }}
+                    >
+                      <div>
+                        <label style={{ display: "block", fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>
+                          Final Category
+                        </label>
+                        <select
+                          value={finalCategoryInput}
+                          onChange={(e) => setFinalCategoryInput(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "12px 16px",
+                            fontSize: "14px",
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "4px",
+                            backgroundColor: "#ffffff",
+                            color: "#0f172a",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          <option value="">No change</option>
+                          <option value="Sanitation">Sanitation</option>
+                          <option value="Roads">Roads</option>
+                          <option value="Electricity">Electricity</option>
+                          <option value="Water">Water</option>
+                          <option value="Uncertain">Uncertain</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>
+                          Final Priority
+                        </label>
+                        <select
+                          value={finalPriorityInput}
+                          onChange={(e) => setFinalPriorityInput(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "12px 16px",
+                            fontSize: "14px",
+                            border: "1px solid #cbd5e1",
+                            borderRadius: "4px",
+                            backgroundColor: "#ffffff",
+                            color: "#0f172a",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          <option value="">No change</option>
+                          <option value="Low">Low</option>
+                          <option value="Medium">Medium</option>
+                          <option value="High">High</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: "20px" }}>
+                      <label style={{ display: "block", fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>
+                        Reason for override <span style={{ color: "#dc2626" }}>*</span>
+                      </label>
+                      <textarea
+                        value={overrideReasonInput}
+                        onChange={(e) => setOverrideReasonInput(e.target.value)}
+                        placeholder="Explain why you are changing the final category or priority."
+                        style={{
+                          width: "100%",
+                          minHeight: "100px",
+                          padding: "12px 16px",
+                          fontSize: "14px",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "4px",
+                          backgroundColor: "#ffffff",
+                          color: "#0f172a",
+                          fontFamily: "inherit",
+                          resize: "vertical",
+                        }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        onClick={handleOverrideCancel}
+                        className="refresh-btn"
+                        disabled={overrideSubmitting}
+                        style={{ padding: "10px 20px", fontSize: "14px" }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={!isOverrideValid || overrideSubmitting}
+                        className="refresh-btn"
+                        style={{
+                          padding: "10px 20px",
+                          fontSize: "14px",
+                          backgroundColor: "#1e40af",
+                          borderColor: "#1e40af",
+                          color: "#fff",
+                        }}
+                      >
+                        {overrideSubmitting ? "Submitting…" : "Submit override"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginBottom: "32px" }}>
+            {/* Override Audit - card matching AI Advisory */}
+            {hasOverrideAudit && (
+              <>
+                <h3 className="subsection-title" style={{ marginBottom: "20px" }}>
+                  Override Audit
+                </h3>
+                <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "16px" }}>
+                  Record of the human override for this complaint.
+                </p>
+                <div
+                  style={{
+                    padding: "24px",
+                    backgroundColor: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "4px",
+                    borderLeft: "4px solid #f59e0b",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                      gap: "16px",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Overridden By</div>
+                      <div style={{ fontSize: "16px", fontWeight: 500, color: "#334155" }}>
+                        {decidedByName}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Overridden At</div>
+                      <div style={{ fontSize: "16px", fontWeight: 500, color: "#334155" }}>
+                        {decidedAtFormatted}
+                      </div>
+                    </div>
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>Reason</div>
+                      <div
+                        style={{
+                          fontSize: "16px",
+                          fontWeight: 500,
+                          color: "#334155",
+                          lineHeight: 1.5,
+                          padding: "12px",
+                          backgroundColor: "#ffffff",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "4px",
+                        }}
+                      >
+                        {overrideReason}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* AI Prediction History Timeline */}
+            {Array.isArray(complaint.aiPredictionHistory) &&
+              complaint.aiPredictionHistory.length > 0 && (
+                <AIPredictionTimeline
+                  history={complaint.aiPredictionHistory}
+                  finalCategory={finalCategory}
+                  finalPriority={finalPriority}
+                />
+              )}
           </div>
 
           {/* AI Advisory Insights Section - Collapsible, Only for Resolved */}

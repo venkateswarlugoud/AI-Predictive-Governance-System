@@ -6,8 +6,9 @@ import jwt from "jsonwebtoken";
 // Generate JWT
 // =======================================
 const generateToken = (id) => {
+  const expiresIn = process.env.JWT_EXPIRES_IN || "1d"; // e.g. "1h", "1d"
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: "7d",
+    expiresIn,
   });
 };
 
